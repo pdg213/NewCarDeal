@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Deal Cashflow Model (Single-File + Charts)</title>
+    <title>Deal Cashflow Model (Single-File + Charts + Sliders)</title>
 
     <!-- React + ReactDOM (UMD) -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -74,6 +74,10 @@
         padding: 0;
         border-radius: 4px;
       }
+      input[type="range"] {
+        width: 220px;
+      }
+
       .cardRow {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -90,6 +94,7 @@
         font-size: 20px;
         margin-top: 6px;
       }
+
       .badgeRow {
         display: flex;
         gap: 8px;
@@ -105,6 +110,7 @@
         color: #333;
         background: var(--bg);
       }
+
       .section {
         margin-top: 18px;
       }
@@ -142,14 +148,6 @@
       }
       details summary {
         cursor: pointer;
-      }
-      .inline3 {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-      .mutedNote {
-        margin-top: 6px;
       }
       .right {
         text-align: right;
@@ -214,6 +212,42 @@
         gap: 8px;
         align-items: center;
         user-select: none;
+      }
+
+      /* Slider UI */
+      .sliderWrap {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 280px;
+      }
+      .sliderRow {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .sliderLabel {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .sliderValue {
+        font-weight: 600;
+      }
+      .mini {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: #fff;
+        font-size: 12px;
+      }
+      .tight {
+        line-height: 1.25;
       }
     </style>
   </head>
@@ -295,6 +329,18 @@
         return addDaysUTC(firstNext, -1);
       }
 
+      // Slider mapping: March..September 2026
+      const SALE_MONTHS = ["2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09"];
+
+      function saleIndexFromMonth(month) {
+        const idx = SALE_MONTHS.indexOf(month);
+        return idx >= 0 ? idx : 0;
+      }
+      function saleMonthFromIndex(i) {
+        const idx = Math.min(Math.max(Number(i), 0), SALE_MONTHS.length - 1);
+        return SALE_MONTHS[idx];
+      }
+
       /***************
        * Model logic
        ***************/
@@ -318,21 +364,18 @@
         }
       }
 
-      function computeDefaultsForCar(deal, prodStartMonth) {
-        const d2DepositMonth = "2026-07";
-        const dueD2 = addMonths(d2DepositMonth, -1); // 1 month ahead
+      function computeDueMonths(deal, prodStartMonth) {
+        // Customer due lead is fixed at 1 month ahead
+        const d2DepositMonth = "2026-07"; // manufacturer D2 month
+        const dueD2 = addMonths(d2DepositMonth, -1); // June 2026
         const dueD3 = addMonths(prodStartMonth, -1);
         const deliveryMonth = addMonths(prodStartMonth, deal.buildMonths);
         const dueD4 = addMonths(deliveryMonth, -1);
-        return {
-          deliveryMonth,
-          dueD2,
-          dueD3,
-          dueD4,
-          paidD2Month: dueD2,
-          paidD3Month: dueD3,
-          paidD4Month: dueD4,
-        };
+        return { dueD2, dueD3, dueD4, deliveryMonth };
+      }
+
+      function paidFromDueAndLate(dueMonth, lateMonths) {
+        return addMonths(dueMonth, lateMonths);
       }
 
       function buildCashflow(deal, cars) {
@@ -390,23 +433,30 @@
             amount: +D1,
           });
 
+          const { dueD2, dueD3, dueD4 } = computeDueMonths(deal, c.prodStartMonth);
+
+          // Paid months are due month + lateMonths (lateMonths applies to D2/D3/D4 per your instruction)
+          const paidD2Month = paidFromDueAndLate(dueD2, c.lateMonths);
+          const paidD3Month = paidFromDueAndLate(dueD3, c.lateMonths);
+          const paidD4Month = paidFromDueAndLate(dueD4, c.lateMonths);
+
           // Customer receipts staged
           raw.push({
-            date: monthDate15(c.paidD2Month),
+            date: monthDate15(paidD2Month),
             type: "CUST_IN",
-            label: `Car ${c.id}: Customer D2 receipt`,
+            label: `Car ${c.id}: Customer D2 receipt (late ${c.lateMonths}m)`,
             amount: +D2,
           });
           raw.push({
-            date: monthDate15(c.paidD3Month),
+            date: monthDate15(paidD3Month),
             type: "CUST_IN",
-            label: `Car ${c.id}: Customer D3 receipt`,
+            label: `Car ${c.id}: Customer D3 receipt (late ${c.lateMonths}m)`,
             amount: +D3,
           });
           raw.push({
-            date: monthDate15(c.paidD4Month),
+            date: monthDate15(paidD4Month),
             type: "CUST_IN",
-            label: `Car ${c.id}: Customer D4 receipt`,
+            label: `Car ${c.id}: Customer D4 receipt (late ${c.lateMonths}m)`,
             amount: +D4,
           });
 
@@ -607,8 +657,7 @@
        * Chart helpers
        ***************/
       function toMM(m) {
-        // display-friendly label, keep as YYYY-MM (simple + auditable)
-        return m;
+        return m; // keep YYYY-MM for auditability
       }
 
       function ChartCanvas({ config, ariaLabel }) {
@@ -618,7 +667,6 @@
         useEffect(() => {
           if (!ref.current) return;
 
-          // destroy prior chart
           if (chartRef.current) {
             chartRef.current.destroy();
             chartRef.current = null;
@@ -669,14 +717,11 @@
             next.push({ ...prev, id });
           } else {
             const prodStartMonth = defaultProdStartForIndex(i);
-            const defaults = computeDefaultsForCar(deal, prodStartMonth);
             next.push({
               id,
-              saleMonth: "2026-02", // earliest allowed per spec (no sales before D1)
+              saleMonth: "2026-03", // default to March 2026 (slider range)
               prodStartMonth,
-              paidD2Month: defaults.paidD2Month,
-              paidD3Month: defaults.paidD3Month,
-              paidD4Month: defaults.paidD4Month,
+              lateMonths: 0, // slider 0-3
             });
           }
         }
@@ -692,11 +737,7 @@
         });
 
         const [cars, setCars] = useState(() =>
-          clampCars(
-            12,
-            { numCars: 12, buildMonths: 4, annualRate: 0.085, startMonth: "2026-01" },
-            []
-          )
+          clampCars(12, { numCars: 12, buildMonths: 4, annualRate: 0.085, startMonth: "2026-01" }, [])
         );
 
         const [showCumInterestOnChart1, setShowCumInterestOnChart1] = useState(false);
@@ -704,63 +745,25 @@
         function applyDealPatch(patch) {
           const nextDeal = { ...deal, ...patch };
           setDeal(nextDeal);
-
-          setCars((prev) => {
-            const resized = clampCars(nextDeal.numCars, nextDeal, prev);
-
-            // If buildMonths changes, recompute default due months for D3/D4 only where the user hasn't overridden.
-            if (patch.buildMonths !== undefined) {
-              return resized.map((c) => {
-                const oldDelivery = addMonths(c.prodStartMonth, deal.buildMonths);
-                const oldDueD4 = addMonths(oldDelivery, -1);
-                const oldDueD3 = addMonths(c.prodStartMonth, -1);
-
-                const newDefaults = computeDefaultsForCar(nextDeal, c.prodStartMonth);
-
-                const paidD3Month = c.paidD3Month === oldDueD3 ? newDefaults.paidD3Month : c.paidD3Month;
-                const paidD4Month = c.paidD4Month === oldDueD4 ? newDefaults.paidD4Month : c.paidD4Month;
-
-                return { ...c, paidD3Month, paidD4Month };
-              });
-            }
-
-            return resized;
-          });
+          setCars((prev) => clampCars(nextDeal.numCars, nextDeal, prev));
         }
 
         function updateCar(id, patch) {
           setCars((prev) =>
-            prev.map((c) => {
-              if (c.id !== id) return c;
-              const next = { ...c, ...patch };
-
-              // If prod start changes, keep paidD3/paidD4 synced only if they were still at defaults.
-              if (patch.prodStartMonth) {
-                const oldDueD3 = addMonths(c.prodStartMonth, -1);
-                const oldDelivery = addMonths(c.prodStartMonth, deal.buildMonths);
-                const oldDueD4 = addMonths(oldDelivery, -1);
-
-                const newDefaults = computeDefaultsForCar(deal, patch.prodStartMonth);
-
-                const paidD3Month = c.paidD3Month === oldDueD3 ? newDefaults.paidD3Month : next.paidD3Month;
-                const paidD4Month = c.paidD4Month === oldDueD4 ? newDefaults.paidD4Month : next.paidD4Month;
-
-                return { ...next, paidD3Month, paidD4Month };
-              }
-
-              return next;
-            })
+            prev.map((c) => (c.id === id ? { ...c, ...patch } : c))
           );
         }
 
         const { monthly, ledger, kpis } = useMemo(() => buildCashflow(deal, cars), [deal, cars]);
 
+        const dueLeadMonths = 1;
         const d2DepositMonth = "2026-07";
-        const dueD2 = addMonths(d2DepositMonth, -1);
+        const dueD2 = addMonths(d2DepositMonth, -dueLeadMonths);
 
         /***************
          * Chart 1 config
          * Lines: Net Exposure (Unfinanced), Debt (EOM), Cumulative Rebates (+ optional cum interest)
+         * Legend includes LHS/RHS tags per your request.
          ***************/
         const chart1Config = useMemo(() => {
           const labels = monthly.map((r) => toMM(r.month));
@@ -772,7 +775,7 @@
           const datasets = [
             {
               type: "line",
-              label: "Net Exposure (Unfinanced)",
+              label: "Net Exposure (Unfinanced) — LHS",
               data: netExposure,
               yAxisID: "y",
               tension: 0.25,
@@ -781,7 +784,7 @@
             },
             {
               type: "line",
-              label: "Debt Outstanding (EOM)",
+              label: "Debt Outstanding (EOM) — LHS",
               data: debt,
               yAxisID: "y",
               tension: 0.25,
@@ -791,7 +794,7 @@
             },
             {
               type: "line",
-              label: "Cumulative Rebates",
+              label: "Cumulative Rebates — RHS",
               data: cumRebates,
               yAxisID: "y1",
               tension: 0.25,
@@ -803,7 +806,7 @@
           if (showCumInterestOnChart1) {
             datasets.push({
               type: "line",
-              label: "Cumulative Interest Paid",
+              label: "Cumulative Interest Paid — RHS",
               data: cumInterest,
               yAxisID: "y1",
               tension: 0.25,
@@ -824,10 +827,7 @@
                 legend: { position: "bottom" },
                 tooltip: {
                   callbacks: {
-                    label: (ctx) => {
-                      const v = ctx.parsed.y;
-                      return `${ctx.dataset.label}: ${gbp(v)}`;
-                    },
+                    label: (ctx) => `${ctx.dataset.label}: ${gbp(ctx.parsed.y)}`,
                   },
                 },
               },
@@ -837,18 +837,14 @@
                   grid: { display: false },
                 },
                 y: {
-                  title: { display: true, text: "Funding / Exposure" },
-                  ticks: {
-                    callback: (v) => gbp(Number(v)),
-                  },
+                  title: { display: true, text: "LHS: Funding / Exposure" },
+                  ticks: { callback: (v) => gbp(Number(v)) },
                 },
                 y1: {
                   position: "right",
-                  title: { display: true, text: "Cumulative Profit / Interest" },
+                  title: { display: true, text: "RHS: Cumulative Profit / Interest" },
                   grid: { drawOnChartArea: false },
-                  ticks: {
-                    callback: (v) => gbp(Number(v)),
-                  },
+                  ticks: { callback: (v) => gbp(Number(v)) },
                 },
               },
             },
@@ -858,13 +854,11 @@
         /***************
          * Chart 2 config
          * Stacked monthly net cashflows + debt overlay.
-         * Bars: Customer receipts, Rebates, Manufacturer deposits, Interest
-         * Line: Debt EOM (right axis)
+         * Legend includes LHS/RHS tags per your request.
          ***************/
         const chart2Config = useMemo(() => {
           const labels = monthly.map((r) => toMM(r.month));
 
-          // derive monthly deltas from cumulative series
           const cust = [];
           const rebates = [];
           const mfg = [];
@@ -882,8 +876,8 @@
 
             cust.push(dCust);
             rebates.push(dReb);
-            mfg.push(-dMfgOut); // show as negative cashflow
-            interest.push(-dInt); // negative cashflow
+            mfg.push(-dMfgOut);
+            interest.push(-dInt);
             debt.push(cur.debtEOM);
           }
 
@@ -894,35 +888,35 @@
               datasets: [
                 {
                   type: "bar",
-                  label: "Customer Receipts",
+                  label: "Customer Receipts — LHS",
                   data: cust,
                   stack: "cashflow",
                   borderWidth: 0,
                 },
                 {
                   type: "bar",
-                  label: "Rebates",
+                  label: "Rebates — LHS",
                   data: rebates,
                   stack: "cashflow",
                   borderWidth: 0,
                 },
                 {
                   type: "bar",
-                  label: "Manufacturer Deposits",
+                  label: "Manufacturer Deposits — LHS",
                   data: mfg,
                   stack: "cashflow",
                   borderWidth: 0,
                 },
                 {
                   type: "bar",
-                  label: "Interest Paid",
+                  label: "Interest Paid — LHS",
                   data: interest,
                   stack: "cashflow",
                   borderWidth: 0,
                 },
                 {
                   type: "line",
-                  label: "Debt (EOM)",
+                  label: "Debt (EOM) — RHS",
                   data: debt,
                   yAxisID: "y1",
                   tension: 0.25,
@@ -939,11 +933,7 @@
                 legend: { position: "bottom" },
                 tooltip: {
                   callbacks: {
-                    label: (ctx) => {
-                      const v = ctx.parsed.y;
-                      if (ctx.dataset.type === "line") return `${ctx.dataset.label}: ${gbp(v)}`;
-                      return `${ctx.dataset.label}: ${gbp(v)}`;
-                    },
+                    label: (ctx) => `${ctx.dataset.label}: ${gbp(ctx.parsed.y)}`,
                   },
                 },
               },
@@ -955,12 +945,12 @@
                 },
                 y: {
                   stacked: true,
-                  title: { display: true, text: "Monthly Cashflow" },
+                  title: { display: true, text: "LHS: Monthly Cashflow" },
                   ticks: { callback: (v) => gbp(Number(v)) },
                 },
                 y1: {
                   position: "right",
-                  title: { display: true, text: "Debt Outstanding" },
+                  title: { display: true, text: "RHS: Debt Outstanding" },
                   grid: { drawOnChartArea: false },
                   ticks: { callback: (v) => gbp(Number(v)) },
                 },
@@ -973,10 +963,11 @@
           <div className="page">
             <div className="row">
               <div>
-                <h1>Deal Cashflow Model (single HTML file + charts)</h1>
+                <h1>Deal Cashflow Model (single HTML file + charts + sliders)</h1>
                 <div className="small">
-                  Defaults assume each customer tranche payment occurs in the computed <b>Due Month</b> (one month ahead of each manufacturer deposit month).
-                  All user-entered months map to the <b>15th</b> of that month. Interest accrues daily on <b>ACT/365F</b> and is paid month-end.
+                  Sale Month is a per-car slider (Mar–Sep 2026). Late Months is a per-car slider (0–3) applied to <b>D2, D3, and D4</b> customer payments.
+                  Customer due dates are always 1 month ahead of each manufacturer deposit month. All month-based events occur on the <b>15th</b>.
+                  Interest accrues daily on <b>ACT/365F</b> and is paid month-end.
                 </div>
               </div>
 
@@ -1070,7 +1061,7 @@
                 <div className="chartHeader">
                   <div>
                     <div className="chartTitle">Chart 1: Exposure, Debt, and Cumulative Profit</div>
-                    <div className="small">Left axis: Net exposure (unfinanced) and debt. Right axis: cumulative rebates (and optional cumulative interest).</div>
+                    <div className="small">Legend tags indicate which axis each series uses (LHS vs RHS).</div>
                   </div>
                   <div className="chartTools">
                     <label className="toggleRow small" title="Show cumulative interest on Chart 1">
@@ -1090,7 +1081,7 @@
                   />
                 </div>
                 <div className="hint">
-                  Net Exposure (Unfinanced) = cumulative manufacturer deposits − (cumulative customer receipts + cumulative rebates). This is the clean “how much you’re out” metric independent of financing.
+                  Net Exposure (Unfinanced) = cumulative manufacturer deposits − (cumulative customer receipts + cumulative rebates).
                 </div>
               </div>
 
@@ -1098,7 +1089,7 @@
                 <div className="chartHeader">
                   <div>
                     <div className="chartTitle">Chart 2: Monthly Cashflow Bridge (Stacked) + Debt Overlay</div>
-                    <div className="small">Bars show monthly inflows/outflows; the line shows end-of-month debt.</div>
+                    <div className="small">Bars (LHS) show monthly inflows/outflows; the line (RHS) shows end-of-month debt.</div>
                   </div>
                 </div>
                 <div className="chartCanvasWrap">
@@ -1108,17 +1099,19 @@
                   />
                 </div>
                 <div className="hint">
-                  Positive bars are receipts (customers + rebates). Negative bars are payments (manufacturer deposits + interest). Debt increases when outflows precede inflows and decreases when cash arrives early.
+                  Positive bars are receipts (customers + rebates). Negative bars are payments (manufacturer deposits + interest).
                 </div>
               </div>
             </div>
 
-            {/* Per-car schedule */}
+            {/* Per-car schedule (simplified inputs) */}
             <div className="section">
               <div className="row">
-                <div className="sectionTitle">Per-car schedule</div>
+                <div className="sectionTitle">Per-car schedule (simplified inputs)</div>
                 <div className="badgeRow">
-                  <span className="badge">Customer Due Lead: 1 month ahead</span>
+                  <span className="badge">Sale Month slider range: Mar–Sep 2026</span>
+                  <span className="badge">Late Months slider range: 0–3 (applies to D2/D3/D4)</span>
+                  <span className="badge">Customer Due Lead: {dueLeadMonths} month ahead</span>
                   <span className="badge">Customer D2 Due Month (all cars): {dueD2}</span>
                   <span className="badge">MFG D1: 2026-02-01</span>
                   <span className="badge">MFG D2: 2026-07-15</span>
@@ -1130,29 +1123,64 @@
                   <thead>
                     <tr>
                       <th>Car</th>
-                      <th>Sale month (Customer D1 on 15th)</th>
-                      <th>Prod start month (D3 on 15th)</th>
-                      <th>Delivery month (start + build)</th>
-                      <th>Due months (D2 / D3 / D4)</th>
-                      <th>Paid months (D2 / D3 / D4)</th>
+                      <th>Sale Month (slider)</th>
+                      <th>Late Months (slider)</th>
+                      <th>Prod Start Month</th>
+                      <th>Delivery Month</th>
+                      <th>Due Months (D2 / D3 / D4)</th>
+                      <th>Paid Months (D2 / D3 / D4)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {cars.map((c) => {
-                      const defs = computeDefaultsForCar(deal, c.prodStartMonth);
+                      const { dueD2, dueD3, dueD4, deliveryMonth } = computeDueMonths(deal, c.prodStartMonth);
+                      const paidD2 = paidFromDueAndLate(dueD2, c.lateMonths);
+                      const paidD3 = paidFromDueAndLate(dueD3, c.lateMonths);
+                      const paidD4 = paidFromDueAndLate(dueD4, c.lateMonths);
 
                       return (
                         <tr key={c.id}>
                           <td className="mono">{c.id}</td>
 
                           <td>
-                            <MonthInput
-                              value={c.saleMonth}
-                              min="2026-02"
-                              onChange={(v) => updateCar(c.id, { saleMonth: v })}
-                            />
-                            <div className="small mutedNote">
-                              Customer pays D1 (£1m) on sale date (15th). No sales before Feb 2026.
+                            <div className="sliderWrap">
+                              <div className="sliderRow">
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max={String(SALE_MONTHS.length - 1)}
+                                  step="1"
+                                  value={saleIndexFromMonth(c.saleMonth)}
+                                  onChange={(e) => updateCar(c.id, { saleMonth: saleMonthFromIndex(e.target.value) })}
+                                />
+                                <span className="pill">
+                                  <span className="sliderValue">{c.saleMonth}</span>
+                                </span>
+                              </div>
+                              <div className="mini tight">
+                                Customer D1 (£1m) received on <b>{c.saleMonth}-15</b>.
+                              </div>
+                            </div>
+                          </td>
+
+                          <td>
+                            <div className="sliderWrap">
+                              <div className="sliderRow">
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="3"
+                                  step="1"
+                                  value={c.lateMonths}
+                                  onChange={(e) => updateCar(c.id, { lateMonths: Number(e.target.value) })}
+                                />
+                                <span className="pill">
+                                  <span className="sliderValue">{c.lateMonths}</span> mo
+                                </span>
+                              </div>
+                              <div className="mini tight">
+                                Applies to customer D2/D3/D4: Paid = Due + Late Months.
+                              </div>
                             </div>
                           </td>
 
@@ -1161,57 +1189,38 @@
                               value={c.prodStartMonth}
                               onChange={(v) => updateCar(c.id, { prodStartMonth: v })}
                             />
-                            <div className="small mutedNote">
-                              D3 due at start; P3 rebate +14 days.
+                            <div className="small mutedNote tight">
+                              D3 due at start (15th); P3 rebate +14 days.
                             </div>
                           </td>
 
                           <td>
-                            <div style={{ fontWeight: 600 }}>{defs.deliveryMonth}</div>
-                            <div className="small mutedNote">
-                              D4 due at delivery; P4 rebate +14 days.
+                            <div style={{ fontWeight: 600 }}>{deliveryMonth}</div>
+                            <div className="small mutedNote tight">
+                              Delivery = start + {deal.buildMonths}m (15th); P4 rebate +14 days.
                             </div>
                           </td>
 
-                          <td>
-                            <div className="small">D2 due: <b>{defs.dueD2}</b></div>
-                            <div className="small">D3 due: <b>{defs.dueD3}</b></div>
-                            <div className="small">D4 due: <b>{defs.dueD4}</b></div>
+                          <td className="mono">
+                            <div>D2 due: {dueD2}</div>
+                            <div>D3 due: {dueD3}</div>
+                            <div>D4 due: {dueD4}</div>
                           </td>
 
-                          <td>
-                            <div className="inline3">
-                              <div>
-                                <div className="small">D2</div>
-                                <MonthInput
-                                  value={c.paidD2Month}
-                                  onChange={(v) => updateCar(c.id, { paidD2Month: v })}
-                                />
-                              </div>
-                              <div>
-                                <div className="small">D3</div>
-                                <MonthInput
-                                  value={c.paidD3Month}
-                                  onChange={(v) => updateCar(c.id, { paidD3Month: v })}
-                                />
-                              </div>
-                              <div>
-                                <div className="small">D4</div>
-                                <MonthInput
-                                  value={c.paidD4Month}
-                                  onChange={(v) => updateCar(c.id, { paidD4Month: v })}
-                                />
-                              </div>
-                            </div>
-                            <div className="small mutedNote">
-                              Default = due month (on-time). Override to model early/late payments (lateness can apply to D4).
-                            </div>
+                          <td className="mono">
+                            <div>D2 paid: {paidD2}</div>
+                            <div>D3 paid: {paidD3}</div>
+                            <div>D4 paid: {paidD4}</div>
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="small mutedNote" style={{ marginTop: 8 }}>
+                Note: “Paid Months” are derived from sliders. If you later want a one-off override for a specific car/tranche, we can add an “override” toggle, but this version is intentionally streamlined.
               </div>
             </div>
 
