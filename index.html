@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deal Cashflow Model (Single-File)</title>
+
+    <!-- React (CDN) + Babel (so you can run JSX in a single HTML file) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+      :root {
+        --border: #ddd;
+        --border2: #eee;
+        --text: #111;
+        --muted: #555;
+        --bg: #fff;
+      }
+      body {
+        margin: 0;
+        background: #fafafa;
+        color: var(--text);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      }
+      .page {
+        padding: 18px;
+        max-width: 1300px;
+        margin: 0 auto;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .small {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .controls {
+        margin-left: auto;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      label {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      input[type="number"],
+      input[type="month"] {
+        padding: 4px 6px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+      }
+      .cardRow {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        background: var(--bg);
+      }
+      .card .value {
+        font-size: 20px;
+        margin-top: 6px;
+      }
+      .badgeRow {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        font-size: 12px;
+        color: #333;
+        background: var(--bg);
+      }
+      .section {
+        margin-top: 18px;
+      }
+      .sectionTitle {
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .tableWrap {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--bg);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th {
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+        padding: 8px 6px;
+        font-size: 12px;
+        color: #444;
+        background: #fcfcfc;
+        white-space: nowrap;
+      }
+      td {
+        border-bottom: 1px solid var(--border2);
+        padding: 8px 6px;
+        vertical-align: top;
+        font-size: 13px;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      details summary {
+        cursor: pointer;
+      }
+      .pillInputs {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: flex-end;
+      }
+      .inline3 {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .mutedNote {
+        margin-top: 6px;
+      }
+      .right {
+        text-align: right;
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useMemo, useState } = React;
+
+      /***************
+       * Utilities
+       ***************/
+      const GBP = 1_000_000;
+
+      function pad2(n) {
+        return String(n).padStart(2, "0");
+      }
+
+      function gbp(n) {
+        const sign = n < 0 ? "-" : "";
+        const abs = Math.abs(n);
+        return (
+          sign +
+          "£" +
+          abs.toLocaleString(undefined, { maximumFractionDigits: 0 })
+        );
+      }
+
+      function pct(n) {
+        return (n * 100).toFixed(1) + "%";
+      }
+
+      // MonthStr is "YYYY-MM"
+      function monthToYMD(month) {
+        const [yStr, mStr] = month.split("-");
+        return { y: Number(yStr), m: Number(mStr) }; // m: 1-12
+      }
+
+      function fmtMonth(y, m) {
+        return `${y}-${pad2(m)}`;
+      }
+
+      function addMonths(month, delta) {
+        const { y, m } = monthToYMD(month);
+        let total = y * 12 + (m - 1) + delta;
+        const ny = Math.floor(total / 12);
+        const nm0 = total % 12;
+        const nm = nm0 + 1;
+        return fmtMonth(ny, nm);
+      }
+
+      function dateUTC(y, m, d) {
+        return new Date(Date.UTC(y, m - 1, d));
+      }
+
+      function monthDate15(month) {
+        const { y, m } = monthToYMD(month);
+        return dateUTC(y, m, 15);
+      }
+
+      function addDaysUTC(d, days) {
+        const nd = new Date(d.getTime());
+        nd.setUTCDate(nd.getUTCDate() + days);
+        return nd;
+      }
+
+      function toISODate(d) {
+        const y = d.getUTCFullYear();
+        const m = pad2(d.getUTCMonth() + 1);
+        const day = pad2(d.getUTCDate());
+        return `${y}-${m}-${day}`;
+      }
+
+      function isMonthEndUTC(d) {
+        const next = addDaysUTC(d, 1);
+        return next.getUTCMonth() !== d.getUTCMonth();
+      }
+
+      function endOfMonthUTC(month) {
+        const { y, m } = monthToYMD(month);
+        const firstNext = m === 12 ? dateUTC(y + 1, 1, 1) : dateUTC(y, m + 1, 1);
+        return addDaysUTC(firstNext, -1);
+      }
+
+      /***************
+       * Model logic
+       ***************/
+      function typePriority(t) {
+        // 1) Customer receipts 2) Manufacturer deposits 3) Rebates 4) Sweep/draw 5) Month-end interest
+        switch (t) {
+          case "CUST_IN":
+            return 1;
+          case "MFG_OUT":
+            return 2;
+          case "REBATE_IN":
+            return 3;
+          case "DEBT_REPAY":
+            return 4;
+          case "DEBT_DRAW":
+            return 4;
+          case "INT_PAID":
+            return 5;
+          default:
+            return 99;
+        }
+      }
+
+      function computeDefaultsForCar(deal, prodStartMonth) {
+        const d2DepositMonth = "2026-07";
+        const dueD2 = addMonths(d2DepositMonth, -1);
+        const dueD3 = addMonths(prodStartMonth, -1);
+        const deliveryMonth = addMonths(prodStartMonth, deal.buildMonths);
+        const dueD4 = addMonths(deliveryMonth, -1);
+        return {
+          deliveryMonth,
+          dueD2,
+          dueD3,
+          dueD4,
+          paidD2Month: dueD2,
+          paidD3Month: dueD3,
+          paidD4Month: dueD4,
+        };
+      }
+
+      function buildCashflow(deal, cars) {
+        const numCars = cars.length;
+
+        // per car deposits
+        const D1 = 1 * GBP;
+        const D2 = 1 * GBP;
+        const D3 = 1 * GBP;
+        const D4 = 2 * GBP;
+
+        // rebates: 10% of each deposit; P4 = 10% of D4 (0.2m)
+        const R1 = 0.1 * GBP;
+        const R2 = 0.1 * GBP;
+        const R3 = 0.1 * GBP;
+        const R4 = 0.2 * GBP;
+
+        const raw = [];
+
+        // Fixed manufacturer deposits (portfolio-level)
+        raw.push({
+          date: dateUTC(2026, 2, 1),
+          type: "MFG_OUT",
+          label: "Manufacturer D1 (all cars)",
+          amount: -(D1 * numCars),
+        });
+        raw.push({
+          date: dateUTC(2026, 7, 15),
+          type: "MFG_OUT",
+          label: "Manufacturer D2 (all cars)",
+          amount: -(D2 * numCars),
+        });
+
+        // Fixed rebates (portfolio-level)
+        raw.push({
+          date: dateUTC(2026, 5, 15),
+          type: "REBATE_IN",
+          label: "Rebate P1 = 10% of D1 (all cars)",
+          amount: +(R1 * numCars),
+        });
+        raw.push({
+          date: dateUTC(2026, 8, 1),
+          type: "REBATE_IN",
+          label: "Rebate P2 = 10% of D2 (all cars)",
+          amount: +(R2 * numCars),
+        });
+
+        // Per-car events
+        for (const c of cars) {
+          // Customer D1 on sale date (15th)
+          raw.push({
+            date: monthDate15(c.saleMonth),
+            type: "CUST_IN",
+            label: `Car ${c.id}: Customer D1 receipt`,
+            amount: +D1,
+          });
+
+          // Customer receipts staged
+          raw.push({
+            date: monthDate15(c.paidD2Month),
+            type: "CUST_IN",
+            label: `Car ${c.id}: Customer D2 receipt`,
+            amount: +D2,
+          });
+          raw.push({
+            date: monthDate15(c.paidD3Month),
+            type: "CUST_IN",
+            label: `Car ${c.id}: Customer D3 receipt`,
+            amount: +D3,
+          });
+          raw.push({
+            date: monthDate15(c.paidD4Month),
+            type: "CUST_IN",
+            label: `Car ${c.id}: Customer D4 receipt`,
+            amount: +D4,
+          });
+
+          const prodStart = monthDate15(c.prodStartMonth);
+          const deliveryMonth = addMonths(c.prodStartMonth, deal.buildMonths);
+          const deliveryDate = monthDate15(deliveryMonth);
+
+          // Manufacturer D3 / D4
+          raw.push({
+            date: prodStart,
+            type: "MFG_OUT",
+            label: `Car ${c.id}: Manufacturer D3`,
+            amount: -D3,
+          });
+          raw.push({
+            date: deliveryDate,
+            type: "MFG_OUT",
+            label: `Car ${c.id}: Manufacturer D4 (delivery)`,
+            amount: -D4,
+          });
+
+          // Rebates P3/P4 = +14 days
+          raw.push({
+            date: addDaysUTC(prodStart, 14),
+            type: "REBATE_IN",
+            label: `Car ${c.id}: Rebate P3 = 10% of D3`,
+            amount: +R3,
+          });
+          raw.push({
+            date: addDaysUTC(deliveryDate, 14),
+            type: "REBATE_IN",
+            label: `Car ${c.id}: Rebate P4 = 10% of D4`,
+            amount: +R4,
+          });
+        }
+
+        // Determine sim window: start at deal.startMonth (1st day), end at max event month + 2
+        const { y: sy, m: sm } = monthToYMD(deal.startMonth);
+        const minDate = dateUTC(sy, sm, 1);
+
+        let maxEventDate = minDate;
+        for (const e of raw) {
+          if (e.date > maxEventDate) maxEventDate = e.date;
+        }
+        const maxMonth = fmtMonth(
+          maxEventDate.getUTCFullYear(),
+          maxEventDate.getUTCMonth() + 1
+        );
+        const simEndMonth = addMonths(maxMonth, 2);
+        const simEndDate = endOfMonthUTC(simEndMonth);
+
+        // Group events by date
+        const byDate = new Map();
+        for (const e of raw) {
+          const key = toISODate(e.date);
+          if (!byDate.has(key)) byDate.set(key, []);
+          byDate.get(key).push(e);
+        }
+        for (const [k, arr] of byDate.entries()) {
+          arr.sort((a, b) => typePriority(a.type) - typePriority(b.type));
+          byDate.set(k, arr);
+        }
+
+        // State
+        let cash = 0;
+        let debt = 0;
+        let accruedInterestThisMonth = 0;
+
+        let cumCustomerIn = 0;
+        let cumMfgOut = 0;
+        let cumRebatesIn = 0;
+        let cumInterestPaid = 0;
+
+        const ledger = [];
+        const monthly = [];
+
+        function record(dateISO, type, label, amount) {
+          ledger.push({
+            dateISO,
+            type,
+            label,
+            amount,
+            cashAfter: cash,
+            debtAfter: debt,
+          });
+        }
+
+        function drawIfNeeded(dateISO, context) {
+          if (cash < 0) {
+            const draw = -cash;
+            debt += draw;
+            cash = 0;
+            record(dateISO, "DEBT_DRAW", `Debt draw (to fund ${context})`, +draw);
+          }
+        }
+
+        function sweep(dateISO) {
+          if (cash > 0 && debt > 0) {
+            const repay = Math.min(cash, debt);
+            cash -= repay;
+            debt -= repay;
+            record(dateISO, "DEBT_REPAY", "Debt repay (cash sweep)", -repay);
+          }
+        }
+
+        // Iterate day-by-day UTC
+        let d = new Date(minDate.getTime());
+        while (d <= simEndDate) {
+          const dateISO = toISODate(d);
+          const todays = byDate.get(dateISO) || [];
+
+          for (const e of todays) {
+            cash += e.amount;
+
+            if (e.type === "CUST_IN") cumCustomerIn += e.amount;
+            if (e.type === "MFG_OUT") cumMfgOut += -e.amount; // store positive outflow
+            if (e.type === "REBATE_IN") cumRebatesIn += e.amount;
+
+            record(dateISO, e.type, e.label, e.amount);
+            drawIfNeeded(dateISO, e.label);
+          }
+
+          // sweep same day
+          sweep(dateISO);
+
+          // daily interest accrual on end-of-day debt (ACT/365F)
+          const dailyRate = deal.annualRate / 365.0;
+          accruedInterestThisMonth += debt * dailyRate;
+
+          // pay interest at month-end
+          if (isMonthEndUTC(d)) {
+            if (accruedInterestThisMonth > 0) {
+              const pay = accruedInterestThisMonth;
+              cash -= pay;
+              cumInterestPaid += pay;
+              record(dateISO, "INT_PAID", "Interest paid (month-end, ACT/365F)", -pay);
+              accruedInterestThisMonth = 0;
+              drawIfNeeded(dateISO, "interest payment");
+            }
+
+            const monthStr = fmtMonth(d.getUTCFullYear(), d.getUTCMonth() + 1);
+            const netExposureUnfinanced = cumMfgOut - (cumCustomerIn + cumRebatesIn);
+
+            monthly.push({
+              month: monthStr,
+              cashEOM: cash,
+              debtEOM: debt,
+              cumCustomerIn,
+              cumMfgOut,
+              cumRebatesIn,
+              cumInterestPaid,
+              netExposureUnfinanced,
+            });
+          }
+
+          d = addDaysUTC(d, 1);
+        }
+
+        // KPIs
+        let peakNet = { value: 0, month: monthly[0]?.month || deal.startMonth };
+        let peakDebt = { value: 0, month: monthly[0]?.month || deal.startMonth };
+
+        for (const r of monthly) {
+          if (r.netExposureUnfinanced > peakNet.value) peakNet = { value: r.netExposureUnfinanced, month: r.month };
+          if (r.debtEOM > peakDebt.value) peakDebt = { value: r.debtEOM, month: r.month };
+        }
+
+        const last = monthly[monthly.length - 1] || null;
+        const totalRebates = last ? last.cumRebatesIn : 0;
+        const totalInterestPaid = last ? last.cumInterestPaid : 0;
+
+        let sawDebt = false;
+        let debtClearedMonth = null;
+        for (const r of monthly) {
+          if (r.debtEOM > 0) sawDebt = true;
+          if (sawDebt && r.debtEOM === 0) {
+            debtClearedMonth = r.month;
+            break;
+          }
+        }
+
+        const profitAfterInterest = totalRebates - totalInterestPaid; // informational
+        const interestAsPctOfRebates = totalRebates > 0 ? totalInterestPaid / totalRebates : 0;
+        const profitOverPeakExposure = peakNet.value > 0 ? totalRebates / peakNet.value : 0;
+
+        const kpis = {
+          peakNetExposure: peakNet,
+          peakDebt: peakDebt,
+          totalRebates,
+          totalInterestPaid,
+          profitAfterInterest,
+          interestAsPctOfRebates,
+          profitOverPeakExposure,
+          debtClearedMonth,
+        };
+
+        return { ledger, monthly, kpis };
+      }
+
+      /***************
+       * UI
+       ***************/
+      function MonthInput({ value, onChange, min, max }) {
+        return (
+          <input
+            type="month"
+            value={value}
+            min={min}
+            max={max}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        );
+      }
+
+      function defaultProdStartForIndex(i) {
+        // Spread across Oct/Nov/Dec 2027 by default (editable)
+        if (i < 4) return "2027-10";
+        if (i < 8) return "2027-11";
+        return "2027-12";
+      }
+
+      function clampCars(target, deal, existing) {
+        const next = [];
+        for (let i = 0; i < target; i++) {
+          const id = i + 1;
+          const prev = existing[i];
+          if (prev) {
+            next.push({ ...prev, id });
+          } else {
+            const prodStartMonth = defaultProdStartForIndex(i);
+            const defaults = computeDefaultsForCar(deal, prodStartMonth);
+            next.push({
+              id,
+              saleMonth: "2026-02", // earliest allowed per spec (no sales before D1)
+              prodStartMonth,
+              paidD2Month: defaults.paidD2Month,
+              paidD3Month: defaults.paidD3Month,
+              paidD4Month: defaults.paidD4Month,
+            });
+          }
+        }
+        return next;
+      }
+
+      function App() {
+        const [deal, setDeal] = useState({
+          numCars: 12,
+          buildMonths: 4,
+          annualRate: 0.085,
+          startMonth: "2026-01",
+        });
+
+        const [cars, setCars] = useState(() => clampCars(12, {
+          numCars: 12,
+          buildMonths: 4,
+          annualRate: 0.085,
+          startMonth: "2026-01",
+        }, []));
+
+        function applyDealPatch(patch) {
+          const nextDeal = { ...deal, ...patch };
+          setDeal(nextDeal);
+          setCars((prev) => {
+            const resized = clampCars(nextDeal.numCars, nextDeal, prev);
+
+            // If buildMonths changes, recompute default due months for D3/D4 only where the user hasn't overridden.
+            if (patch.buildMonths !== undefined) {
+              return resized.map((c) => {
+                const oldDelivery = addMonths(c.prodStartMonth, deal.buildMonths);
+                const oldDueD4 = addMonths(oldDelivery, -1);
+                const oldDueD3 = addMonths(c.prodStartMonth, -1);
+
+                const newDefaults = computeDefaultsForCar(nextDeal, c.prodStartMonth);
+
+                const paidD3Month = (c.paidD3Month === oldDueD3) ? newDefaults.paidD3Month : c.paidD3Month;
+                const paidD4Month = (c.paidD4Month === oldDueD4) ? newDefaults.paidD4Month : c.paidD4Month;
+
+                return { ...c, paidD3Month, paidD4Month };
+              });
+            }
+            return resized;
+          });
+        }
+
+        function updateCar(id, patch) {
+          setCars((prev) =>
+            prev.map((c) => {
+              if (c.id !== id) return c;
+              const next = { ...c, ...patch };
+
+              // If prod start changes, keep paidD3/paidD4 synced only if they were still at defaults.
+              if (patch.prodStartMonth) {
+                const oldDueD3 = addMonths(c.prodStartMonth, -1);
+                const oldDelivery = addMonths(c.prodStartMonth, deal.buildMonths);
+                const oldDueD4 = addMonths(oldDelivery, -1);
+
+                const newDefaults = computeDefaultsForCar(deal, patch.prodStartMonth);
+
+                const paidD3Month = (c.paidD3Month === oldDueD3) ? newDefaults.paidD3Month : next.paidD3Month;
+                const paidD4Month = (c.paidD4Month === oldDueD4) ? newDefaults.paidD4Month : next.paidD4Month;
+
+                return { ...next, paidD3Month, paidD4Month };
+              }
+
+              return next;
+            })
+          );
+        }
+
+        const { monthly, ledger, kpis } = useMemo(() => buildCashflow(deal, cars), [deal, cars]);
+
+        const d2DepositMonth = "2026-07";
+        const dueD2 = addMonths(d2DepositMonth, -1);
+
+        return (
+          <div className="page">
+            <div className="row">
+              <div>
+                <h1>Deal Cashflow Model (single HTML file)</h1>
+                <div className="small">
+                  Defaults assume each customer tranche payment occurs in the computed <b>Due Month</b> (one month ahead of each manufacturer deposit month).
+                  All user-entered months map to the <b>15th</b> of that month. Interest accrues daily on <b>ACT/365F</b> and is paid month-end.
+                </div>
+              </div>
+
+              <div className="controls">
+                <label className="small">
+                  # Cars
+                  <input
+                    type="number"
+                    min="1"
+                    value={deal.numCars}
+                    onChange={(e) => applyDealPatch({ numCars: Math.max(1, Number(e.target.value || 1)) })}
+                    style={{ width: 100 }}
+                  />
+                </label>
+
+                <label className="small">
+                  Build months
+                  <input
+                    type="number"
+                    min="1"
+                    value={deal.buildMonths}
+                    onChange={(e) => applyDealPatch({ buildMonths: Math.max(1, Number(e.target.value || 1)) })}
+                    style={{ width: 120 }}
+                  />
+                </label>
+
+                <label className="small">
+                  Debt rate (annual)
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={deal.annualRate}
+                    onChange={(e) => applyDealPatch({ annualRate: Math.max(0, Number(e.target.value || 0)) })}
+                    style={{ width: 140 }}
+                  />
+                </label>
+
+                <label className="small">
+                  Start month
+                  <MonthInput
+                    value={deal.startMonth}
+                    onChange={(v) => applyDealPatch({ startMonth: v })}
+                    min="2026-01"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* KPI panel */}
+            <div className="cardRow">
+              <div className="card">
+                <div className="small">Peak net exposure (unfinanced)</div>
+                <div className="value">{gbp(kpis.peakNetExposure.value)}</div>
+                <div className="small">Month: {kpis.peakNetExposure.month}</div>
+              </div>
+
+              <div className="card">
+                <div className="small">Peak debt outstanding (EOM)</div>
+                <div className="value">{gbp(kpis.peakDebt.value)}</div>
+                <div className="small">Month: {kpis.peakDebt.month}</div>
+              </div>
+
+              <div className="card">
+                <div className="small">Total rebates received (gross profit)</div>
+                <div className="value">{gbp(kpis.totalRebates)}</div>
+                <div className="small">Should equal £0.5m × cars if all cars complete</div>
+              </div>
+
+              <div className="card">
+                <div className="small">Total interest paid</div>
+                <div className="value">{gbp(kpis.totalInterestPaid)}</div>
+                <div className="small">ACT/365F, paid month-end</div>
+              </div>
+
+              <div className="card">
+                <div className="small">Interest drag (interest / rebates)</div>
+                <div className="value">{pct(kpis.interestAsPctOfRebates)}</div>
+                <div className="small">Informational</div>
+              </div>
+
+              <div className="card">
+                <div className="small">Debt cleared month</div>
+                <div className="value">{kpis.debtClearedMonth || "—"}</div>
+                <div className="small">First month EOM debt returns to £0</div>
+              </div>
+            </div>
+
+            {/* Per-car schedule */}
+            <div className="section">
+              <div className="row">
+                <div className="sectionTitle">Per-car schedule</div>
+                <div className="badgeRow">
+                  <span className="badge">Customer Due Lead: 1 month ahead</span>
+                  <span className="badge">Customer D2 Due Month (all cars): {dueD2}</span>
+                  <span className="badge">MFG D1: 2026-02-01</span>
+                  <span className="badge">MFG D2: 2026-07-15</span>
+                </div>
+              </div>
+
+              <div className="tableWrap" style={{ marginTop: 10 }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Car</th>
+                      <th>Sale month (Customer D1 on 15th)</th>
+                      <th>Prod start month (D3 on 15th)</th>
+                      <th>Delivery month (start + build)</th>
+                      <th>Due months (D2 / D3 / D4)</th>
+                      <th>Paid months (D2 / D3 / D4)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cars.map((c) => {
+                      const defs = computeDefaultsForCar(deal, c.prodStartMonth);
+
+                      return (
+                        <tr key={c.id}>
+                          <td className="mono">{c.id}</td>
+
+                          <td>
+                            <MonthInput
+                              value={c.saleMonth}
+                              min="2026-02"
+                              onChange={(v) => updateCar(c.id, { saleMonth: v })}
+                            />
+                            <div className="small mutedNote">
+                              Customer pays D1 (£1m) on sale date (15th). No sales before Feb 2026.
+                            </div>
+                          </td>
+
+                          <td>
+                            <MonthInput
+                              value={c.prodStartMonth}
+                              onChange={(v) => updateCar(c.id, { prodStartMonth: v })}
+                            />
+                            <div className="small mutedNote">
+                              D3 due at start; P3 rebate +14 days.
+                            </div>
+                          </td>
+
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{defs.deliveryMonth}</div>
+                            <div className="small mutedNote">
+                              D4 due at delivery; P4 rebate +14 days.
+                            </div>
+                          </td>
+
+                          <td>
+                            <div className="small">D2 due: <b>{defs.dueD2}</b></div>
+                            <div className="small">D3 due: <b>{defs.dueD3}</b></div>
+                            <div className="small">D4 due: <b>{defs.dueD4}</b></div>
+                          </td>
+
+                          <td>
+                            <div className="inline3">
+                              <div>
+                                <div className="small">D2</div>
+                                <MonthInput
+                                  value={c.paidD2Month}
+                                  onChange={(v) => updateCar(c.id, { paidD2Month: v })}
+                                />
+                              </div>
+                              <div>
+                                <div className="small">D3</div>
+                                <MonthInput
+                                  value={c.paidD3Month}
+                                  onChange={(v) => updateCar(c.id, { paidD3Month: v })}
+                                />
+                              </div>
+                              <div>
+                                <div className="small">D4</div>
+                                <MonthInput
+                                  value={c.paidD4Month}
+                                  onChange={(v) => updateCar(c.id, { paidD4Month: v })}
+                                />
+                              </div>
+                            </div>
+                            <div className="small mutedNote">
+                              Default = due month (on-time). Override to model early/late payments (lateness can apply to D4).
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Monthly outputs */}
+            <div className="section">
+              <div className="sectionTitle">Monthly outputs (end-of-month)</div>
+              <div className="tableWrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Month</th>
+                      <th className="right">Cash (EOM)</th>
+                      <th className="right">Debt (EOM)</th>
+                      <th className="right">Net exposure (unfinanced)</th>
+                      <th className="right">Cum customer receipts</th>
+                      <th className="right">Cum mfg deposits</th>
+                      <th className="right">Cum rebates</th>
+                      <th className="right">Cum interest paid</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthly.map((r) => (
+                      <tr key={r.month}>
+                        <td className="mono">{r.month}</td>
+                        <td className="right">{gbp(r.cashEOM)}</td>
+                        <td className="right">{gbp(r.debtEOM)}</td>
+                        <td className="right">{gbp(r.netExposureUnfinanced)}</td>
+                        <td className="right">{gbp(r.cumCustomerIn)}</td>
+                        <td className="right">{gbp(r.cumMfgOut)}</td>
+                        <td className="right">{gbp(r.cumRebatesIn)}</td>
+                        <td className="right">{gbp(r.cumInterestPaid)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="small mutedNote">
+                Net exposure (unfinanced) = cumulative manufacturer deposits − (cumulative customer receipts + cumulative rebates). This is the clean “how much you’re out” metric independent of financing.
+              </div>
+            </div>
+
+            {/* Audit ledger */}
+            <div className="section">
+              <details>
+                <summary className="sectionTitle">Audit ledger (chronological)</summary>
+                <div className="tableWrap" style={{ marginTop: 10 }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Label</th>
+                        <th className="right">Amount</th>
+                        <th className="right">Cash after</th>
+                        <th className="right">Debt after</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ledger.map((r, idx) => (
+                        <tr key={idx}>
+                          <td className="mono">{r.dateISO}</td>
+                          <td className="mono">{r.type}</td>
+                          <td>{r.label}</td>
+                          <td className="right">{gbp(r.amount)}</td>
+                          <td className="right">{gbp(r.cashAfter)}</td>
+                          <td className="right">{gbp(r.debtAfter)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </div>
+
+            <div className="section small">
+              Hosting note: you can commit this as <span className="mono">index.html</span> in a GitHub repo and enable GitHub Pages. It will run as-is.
+            </div>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
