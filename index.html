@@ -280,6 +280,9 @@
       }
       .sumBlock {
         background: #fcfcfc;
+        .sumBlue {
+  background: #e8f3ff;
+}
       }
     </style>
   </head>
@@ -1067,83 +1070,84 @@
         /***************
          * Chart 2 config (UPDATED: add Total line on LHS)
          ***************/
-        const chart2Config = useMemo(() => {
-          const labels = monthly.map((r) => toMM(r.month));
+       /***************
+ * Chart 2 config (UPDATED per request)
+ * - Removed: Total Net Cashflow line
+ * - Removed: Interest Paid bars
+ * - Added: Cumulative Rebates line on RHS
+ ***************/
+const chart2Config = useMemo(() => {
+  const labels = monthly.map((r) => toMM(r.month));
 
-          const cust = [];
-          const rebates = [];
-          const mfg = [];
-          const interest = [];
-          const total = [];
-          const debt = [];
+  const cust = [];
+  const rebates = [];
+  const mfg = [];
+  const debt = [];
+  const cumRebates = [];
 
-          for (let i = 0; i < monthly.length; i++) {
-            const cur = monthly[i];
-            const prev = i === 0 ? null : monthly[i - 1];
+  for (let i = 0; i < monthly.length; i++) {
+    const cur = monthly[i];
+    const prev = i === 0 ? null : monthly[i - 1];
 
-            const dCust = cur.cumCustomerIn - (prev ? prev.cumCustomerIn : 0);
-            const dReb = cur.cumRebatesIn - (prev ? prev.cumRebatesIn : 0);
-            const dMfgOut = cur.cumMfgOut - (prev ? prev.cumMfgOut : 0);        // positive outflow delta
-            const dInt = cur.cumInterestPaid - (prev ? prev.cumInterestPaid : 0); // positive outflow delta
+    const dCust = cur.cumCustomerIn - (prev ? prev.cumCustomerIn : 0);
+    const dReb = cur.cumRebatesIn - (prev ? prev.cumRebatesIn : 0);
+    const dMfgOut = cur.cumMfgOut - (prev ? prev.cumMfgOut : 0);
 
-            cust.push(dCust);
-            rebates.push(dReb);
-            mfg.push(-dMfgOut);
-            interest.push(-dInt);
+    cust.push(dCust);
+    rebates.push(dReb);
+    mfg.push(-dMfgOut);
 
-            // Total net cashflow for the month = sum of the stacked components
-            total.push(dCust + dReb - dMfgOut - dInt);
+    debt.push(cur.debtEOM);
+    cumRebates.push(cur.cumRebatesIn); // cumulative (not monthly delta)
+  }
 
-            debt.push(cur.debtEOM);
-          }
+  return {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { type: "bar", label: "Customer Receipts — LHS", data: cust, stack: "cashflow", borderWidth: 0 },
+        { type: "bar", label: "Rebates — LHS", data: rebates, stack: "cashflow", borderWidth: 0 },
+        { type: "bar", label: "Manufacturer Deposits — LHS", data: mfg, stack: "cashflow", borderWidth: 0 },
 
-          return {
-            type: "bar",
-            data: {
-              labels,
-              datasets: [
-                { type: "bar", label: "Customer Receipts — LHS", data: cust, stack: "cashflow", borderWidth: 0 },
-                { type: "bar", label: "Rebates — LHS", data: rebates, stack: "cashflow", borderWidth: 0 },
-                { type: "bar", label: "Manufacturer Deposits — LHS", data: mfg, stack: "cashflow", borderWidth: 0 },
-                { type: "bar", label: "Interest Paid — LHS", data: interest, stack: "cashflow", borderWidth: 0 },
+        // NEW: cumulative rebates line on RHS
+        {
+          type: "line",
+          label: "Cumulative Rebates — RHS",
+          data: cumRebates,
+          yAxisID: "y1",
+          tension: 0.25,
+          borderWidth: 2,
+          pointRadius: 0,
+          borderDash: [4, 3],
+        },
 
-                // NEW: total profile line on LHS (matches stacked bars)
-                {
-                  type: "line",
-                  label: "Total Net Cashflow — LHS",
-                  data: total,
-                  yAxisID: "y",
-                  tension: 0.25,
-                  borderWidth: 2,
-                  pointRadius: 0,
-                  borderDash: [4, 3],
-                  stack: "totalLine",
-                },
+        // existing RHS line
+        { type: "line", label: "Debt (EOM) — RHS", data: debt, yAxisID: "y1", tension: 0.25, borderWidth: 2, pointRadius: 0 },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { position: "bottom" },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${gbp(ctx.parsed.y)}` } },
+      },
+      scales: {
+        x: { stacked: true, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, grid: { display: false } },
+        y: { stacked: true, title: { display: true, text: "LHS: Monthly Cashflow" }, ticks: { callback: (v) => gbp(Number(v)) } },
+        y1: {
+          position: "right",
+          title: { display: true, text: "RHS: Debt Outstanding / Cumulative Rebates" },
+          grid: { drawOnChartArea: false },
+          ticks: { callback: (v) => gbp(Number(v)) },
+        },
+      },
+    },
+  };
+}, [monthly]);
 
-                { type: "line", label: "Debt (EOM) — RHS", data: debt, yAxisID: "y1", tension: 0.25, borderWidth: 2, pointRadius: 0 },
-              ],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              interaction: { mode: "index", intersect: false },
-              plugins: {
-                legend: { position: "bottom" },
-                tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${gbp(ctx.parsed.y)}` } },
-              },
-              scales: {
-                x: { stacked: true, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, grid: { display: false } },
-                y: { stacked: true, title: { display: true, text: "LHS: Monthly Cashflow" }, ticks: { callback: (v) => gbp(Number(v)) } },
-                y1: {
-                  position: "right",
-                  title: { display: true, text: "RHS: Debt Outstanding" },
-                  grid: { drawOnChartArea: false },
-                  ticks: { callback: (v) => gbp(Number(v)) },
-                },
-              },
-            },
-          };
-        }, [monthly]);
 
         return (
           <div className="page">
@@ -1322,7 +1326,7 @@
                       ))}
                     </tr>
 
-                    <tr className="sumBlock">
+                    <tr className="sumBlock sumBlue">
                       <td className="rowLabel"><b>Ending exposure (£)</b></td>
                       {summary2026.months.map((m) => (
                         <td key={m} className="mono right">{gbp(summary2026.endingExposure[m])}</td>
@@ -1368,15 +1372,16 @@
                 <div className="chartHeader">
                   <div>
                     <div className="chartTitle">Chart 2: Monthly Cashflow Bridge (Stacked) + Debt Overlay</div>
-                    <div className="small">Bars (LHS) show monthly inflows/outflows; the line (RHS) shows end-of-month debt. Dashed line (LHS) shows total net cashflow.</div>
+                    <div className="small">Bars (LHS) show monthly inflows/outflows; lines (RHS) show end-of-month debt and cumulative rebates.</div>
                   </div>
                 </div>
                 <div className="chartCanvasWrap">
                   <ChartCanvas config={chart2Config} ariaLabel="Monthly cashflows with total line and debt overlay" />
                 </div>
                 <div className="hint">
-                  Positive bars are receipts (customers + rebates). Negative bars are payments (manufacturer deposits + interest). The dashed line is the monthly total (sum of the stacked bars).
-                </div>
+  Positive bars are receipts (customers + rebates). Negative bars are payments (manufacturer deposits). RHS overlays show debt (EOM) and cumulative rebates.
+</div>
+
               </div>
             </div>
 
