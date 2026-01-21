@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Deal Cashflow Model (Single-File + Charts + Sliders)</title>
+    <title>Deal Cashflow Model (Single-File + Scenarios + Charts + Sliders)</title>
 
     <!-- React + ReactDOM (UMD) -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-    <!-- Babel (so you can run JSX in a single HTML file) -->
+    <!-- Babel (JSX in a single HTML file) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <!-- Chart.js (UMD) -->
@@ -22,7 +22,13 @@
         --text: #111;
         --muted: #555;
         --bg: #fff;
+
+        /* Styling for summary table rows */
+        --pos: #0b7a0b;      /* green */
+        --neg: #b00020;      /* red */
+        --profit: #00c853;   /* bright green line */
       }
+
       body {
         margin: 0;
         background: #fafafa;
@@ -31,15 +37,10 @@
       }
       .page {
         padding: 18px;
-        max-width: 1400px;
+        max-width: 1500px;
         margin: 0 auto;
       }
-      .row {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
+
       h1 {
         margin: 0;
         font-size: 18px;
@@ -47,6 +48,12 @@
       .small {
         color: var(--muted);
         font-size: 12px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
       }
       .controls {
         margin-left: auto;
@@ -62,37 +69,26 @@
       }
       input[type="number"],
       input[type="month"],
-      input[type="checkbox"] {
+      select {
         padding: 4px 6px;
         border: 1px solid var(--border);
         border-radius: 8px;
         background: var(--bg);
       }
-      input[type="checkbox"] {
-        width: 16px;
-        height: 16px;
-        padding: 0;
-        border-radius: 4px;
-      }
       input[type="range"] {
         width: 220px;
       }
+      input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+      }
 
-      .cardRow {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 12px;
-        margin-top: 14px;
+      .section {
+        margin-top: 18px;
       }
-      .card {
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 12px;
-        background: var(--bg);
-      }
-      .card .value {
-        font-size: 20px;
-        margin-top: 6px;
+      .sectionTitle {
+        font-weight: 700;
+        margin-bottom: 8px;
       }
 
       .badgeRow {
@@ -111,13 +107,52 @@
         background: var(--bg);
       }
 
-      .section {
-        margin-top: 18px;
+      /* KPI */
+      .kpiGrid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-top: 14px;
       }
-      .sectionTitle {
-        font-weight: 600;
+      @media (min-width: 1100px) {
+        .kpiGrid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .kpiPanel {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        background: var(--bg);
+      }
+      .kpiHeader {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
         margin-bottom: 8px;
       }
+      .kpiTitle {
+        font-weight: 700;
+      }
+      .cardRow {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 10px;
+      }
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px;
+        background: #fff;
+      }
+      .card .value {
+        font-size: 18px;
+        margin-top: 6px;
+      }
+
+      /* Tables */
       .tableWrap {
         overflow-x: auto;
         border: 1px solid var(--border);
@@ -146,15 +181,18 @@
       tr:last-child td {
         border-bottom: none;
       }
-      details summary {
-        cursor: pointer;
-      }
-      .right {
-        text-align: right;
-      }
+      .right { text-align: right; }
       .mono {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-          "Courier New", monospace;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+
+      /* Summary row coloring */
+      .rowPos td { color: var(--pos); }
+      .rowNeg td { color: var(--neg); }
+      .rowNeutral td { color: var(--text); }
+      .rowTitle {
+        font-weight: 700;
+        color: var(--text) !important;
       }
 
       /* Charts */
@@ -184,7 +222,7 @@
         margin-bottom: 8px;
       }
       .chartTitle {
-        font-weight: 600;
+        font-weight: 700;
       }
       .chartTools {
         display: flex;
@@ -194,12 +232,7 @@
       }
       .chartCanvasWrap {
         position: relative;
-        height: 340px;
-      }
-      @media (min-width: 1100px) {
-        .chartCanvasWrap {
-          height: 360px;
-        }
+        height: 360px;
       }
       .hint {
         color: var(--muted);
@@ -207,14 +240,8 @@
         margin-top: 8px;
         line-height: 1.35;
       }
-      .toggleRow {
-        display: inline-flex;
-        gap: 8px;
-        align-items: center;
-        user-select: none;
-      }
 
-      /* Slider UI */
+      /* Sliders */
       .sliderWrap {
         display: flex;
         flex-direction: column;
@@ -227,10 +254,6 @@
         align-items: center;
         flex-wrap: wrap;
       }
-      .mini {
-        font-size: 11px;
-        color: var(--muted);
-      }
       .pill {
         display: inline-block;
         padding: 2px 8px;
@@ -239,12 +262,22 @@
         background: #fff;
         font-size: 12px;
       }
-      .sliderValue {
-        font-weight: 600;
+      .sliderValue { font-weight: 700; }
+      .mini { font-size: 11px; color: var(--muted); line-height: 1.25; }
+
+      /* Side-by-side Feb-Dec summary */
+      .summaryGrid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
       }
-      .tight {
-        line-height: 1.25;
+      @media (min-width: 1100px) {
+        .summaryGrid {
+          grid-template-columns: 1fr 1fr;
+        }
       }
+
+      details summary { cursor: pointer; }
     </style>
   </head>
 
@@ -259,9 +292,7 @@
        ***************/
       const GBP = 1_000_000;
 
-      function pad2(n) {
-        return String(n).padStart(2, "0");
-      }
+      function pad2(n) { return String(n).padStart(2, "0"); }
 
       function gbp(n) {
         const sign = n < 0 ? "-" : "";
@@ -269,9 +300,7 @@
         return sign + "£" + abs.toLocaleString(undefined, { maximumFractionDigits: 0 });
       }
 
-      function pct(n) {
-        return (n * 100).toFixed(1) + "%";
-      }
+      function pct(n) { return (n * 100).toFixed(1) + "%"; }
 
       // MonthStr is "YYYY-MM"
       function monthToYMD(month) {
@@ -279,22 +308,17 @@
         return { y: Number(yStr), m: Number(mStr) }; // m: 1-12
       }
 
-      function fmtMonth(y, m) {
-        return `${y}-${pad2(m)}`;
-      }
+      function fmtMonth(y, m) { return `${y}-${pad2(m)}`; }
 
       function addMonths(month, delta) {
         const { y, m } = monthToYMD(month);
         let total = y * 12 + (m - 1) + delta;
         const ny = Math.floor(total / 12);
         const nm0 = total % 12;
-        const nm = nm0 + 1;
-        return fmtMonth(ny, nm);
+        return fmtMonth(ny, nm0 + 1);
       }
 
-      function dateUTC(y, m, d) {
-        return new Date(Date.UTC(y, m - 1, d));
-      }
+      function dateUTC(y, m, d) { return new Date(Date.UTC(y, m - 1, d)); }
 
       function monthDate15(month) {
         const { y, m } = monthToYMD(month);
@@ -327,7 +351,6 @@
 
       // Slider mapping: March..September 2026
       const SALE_MONTHS = ["2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09"];
-
       function saleIndexFromMonth(month) {
         const idx = SALE_MONTHS.indexOf(month);
         return idx >= 0 ? idx : 0;
@@ -343,20 +366,13 @@
       function typePriority(t) {
         // 1) Customer receipts 2) Manufacturer deposits 3) Rebates 4) Sweep/draw 5) Month-end interest
         switch (t) {
-          case "CUST_IN":
-            return 1;
-          case "MFG_OUT":
-            return 2;
-          case "REBATE_IN":
-            return 3;
-          case "DEBT_REPAY":
-            return 4;
-          case "DEBT_DRAW":
-            return 4;
-          case "INT_PAID":
-            return 5;
-          default:
-            return 99;
+          case "CUST_IN": return 1;
+          case "MFG_OUT": return 2;
+          case "REBATE_IN": return 3;
+          case "DEBT_REPAY": return 4;
+          case "DEBT_DRAW": return 4;
+          case "INT_PAID": return 5;
+          default: return 99;
         }
       }
 
@@ -374,7 +390,8 @@
         return addMonths(dueMonth, lateMonths);
       }
 
-      function buildCashflow(deal, cars) {
+      // scenarioLateAdd: additional lateness applied to D2/D3/D4 customer payments
+      function buildCashflow(deal, cars, scenarioLateAdd) {
         const numCars = cars.length;
 
         // per car deposits
@@ -392,114 +409,51 @@
         const raw = [];
 
         // Fixed manufacturer deposits (portfolio-level)
-        raw.push({
-          date: dateUTC(2026, 2, 1),
-          type: "MFG_OUT",
-          label: "Manufacturer D1 (all cars)",
-          amount: -(D1 * numCars),
-        });
-        raw.push({
-          date: dateUTC(2026, 7, 15),
-          type: "MFG_OUT",
-          label: "Manufacturer D2 (all cars)",
-          amount: -(D2 * numCars),
-        });
+        raw.push({ date: dateUTC(2026, 2, 1), type: "MFG_OUT", label: "Manufacturer D1 (all cars)", amount: -(D1 * numCars) });
+        raw.push({ date: dateUTC(2026, 7, 15), type: "MFG_OUT", label: "Manufacturer D2 (all cars)", amount: -(D2 * numCars) });
 
         // Fixed rebates (portfolio-level)
-        raw.push({
-          date: dateUTC(2026, 5, 15),
-          type: "REBATE_IN",
-          label: "Rebate P1 = 10% of D1 (all cars)",
-          amount: +(R1 * numCars),
-        });
-        raw.push({
-          date: dateUTC(2026, 8, 1),
-          type: "REBATE_IN",
-          label: "Rebate P2 = 10% of D2 (all cars)",
-          amount: +(R2 * numCars),
-        });
+        raw.push({ date: dateUTC(2026, 5, 15), type: "REBATE_IN", label: "Rebate P1 = 10% of D1 (all cars)", amount: +(R1 * numCars) });
+        raw.push({ date: dateUTC(2026, 8, 1), type: "REBATE_IN", label: "Rebate P2 = 10% of D2 (all cars)", amount: +(R2 * numCars) });
 
         // Per-car events
         for (const c of cars) {
           // Customer D1 on sale date (15th)
-          raw.push({
-            date: monthDate15(c.saleMonth),
-            type: "CUST_IN",
-            tranche: "D1",
-            label: `Car ${c.id}: Customer D1 receipt`,
-            amount: +D1,
-          });
+          raw.push({ date: monthDate15(c.saleMonth), type: "CUST_IN", tranche: "D1", label: `Car ${c.id}: Customer D1 receipt`, amount: +D1 });
 
           const { dueD2, dueD3, dueD4 } = computeDueMonths(deal, c.prodStartMonth);
 
-          // Paid months are due month + lateMonths (lateMonths applies to D2/D3/D4)
-          const paidD2Month = paidFromDueAndLate(dueD2, c.lateMonths);
-          const paidD3Month = paidFromDueAndLate(dueD3, c.lateMonths);
-          const paidD4Month = paidFromDueAndLate(dueD4, c.lateMonths);
+          // Paid months are due month + (car late + scenario add), applies to D2/D3/D4
+          const totalLate = Math.max(0, Math.min(12, Number(c.lateMonths) + Number(scenarioLateAdd || 0)));
 
-          raw.push({
-            date: monthDate15(paidD2Month),
-            type: "CUST_IN",
-            tranche: "D2",
-            label: `Car ${c.id}: Customer D2 receipt (late ${c.lateMonths}m)`,
-            amount: +D2,
-          });
-          raw.push({
-            date: monthDate15(paidD3Month),
-            type: "CUST_IN",
-            tranche: "D3",
-            label: `Car ${c.id}: Customer D3 receipt (late ${c.lateMonths}m)`,
-            amount: +D3,
-          });
-          raw.push({
-            date: monthDate15(paidD4Month),
-            type: "CUST_IN",
-            tranche: "D4",
-            label: `Car ${c.id}: Customer D4 receipt (late ${c.lateMonths}m)`,
-            amount: +D4,
-          });
+          const paidD2Month = paidFromDueAndLate(dueD2, totalLate);
+          const paidD3Month = paidFromDueAndLate(dueD3, totalLate);
+          const paidD4Month = paidFromDueAndLate(dueD4, totalLate);
+
+          raw.push({ date: monthDate15(paidD2Month), type: "CUST_IN", tranche: "D2", label: `Car ${c.id}: Customer D2 receipt (late ${totalLate}m)`, amount: +D2 });
+          raw.push({ date: monthDate15(paidD3Month), type: "CUST_IN", tranche: "D3", label: `Car ${c.id}: Customer D3 receipt (late ${totalLate}m)`, amount: +D3 });
+          raw.push({ date: monthDate15(paidD4Month), type: "CUST_IN", tranche: "D4", label: `Car ${c.id}: Customer D4 receipt (late ${totalLate}m)`, amount: +D4 });
 
           const prodStart = monthDate15(c.prodStartMonth);
           const deliveryMonth = addMonths(c.prodStartMonth, deal.buildMonths);
           const deliveryDate = monthDate15(deliveryMonth);
 
           // Manufacturer D3 / D4
-          raw.push({
-            date: prodStart,
-            type: "MFG_OUT",
-            label: `Car ${c.id}: Manufacturer D3`,
-            amount: -D3,
-          });
-          raw.push({
-            date: deliveryDate,
-            type: "MFG_OUT",
-            label: `Car ${c.id}: Manufacturer D4 (delivery)`,
-            amount: -D4,
-          });
+          raw.push({ date: prodStart, type: "MFG_OUT", label: `Car ${c.id}: Manufacturer D3`, amount: -D3 });
+          raw.push({ date: deliveryDate, type: "MFG_OUT", label: `Car ${c.id}: Manufacturer D4 (delivery)`, amount: -D4 });
 
           // Rebates P3/P4 = +14 days
-          raw.push({
-            date: addDaysUTC(prodStart, 14),
-            type: "REBATE_IN",
-            label: `Car ${c.id}: Rebate P3 = 10% of D3`,
-            amount: +R3,
-          });
-          raw.push({
-            date: addDaysUTC(deliveryDate, 14),
-            type: "REBATE_IN",
-            label: `Car ${c.id}: Rebate P4 = 10% of D4`,
-            amount: +R4,
-          });
+          raw.push({ date: addDaysUTC(prodStart, 14), type: "REBATE_IN", label: `Car ${c.id}: Rebate P3 = 10% of D3`, amount: +R3 });
+          raw.push({ date: addDaysUTC(deliveryDate, 14), type: "REBATE_IN", label: `Car ${c.id}: Rebate P4 = 10% of D4`, amount: +R4 });
         }
 
-        // Determine sim window: start at deal.startMonth (1st day), end at max event month + 2
+        // Determine sim window: start at deal.startMonth, end at max event month + 2
         const { y: sy, m: sm } = monthToYMD(deal.startMonth);
         const minDate = dateUTC(sy, sm, 1);
 
         let maxEventDate = minDate;
-        for (const e of raw) {
-          if (e.date > maxEventDate) maxEventDate = e.date;
-        }
+        for (const e of raw) if (e.date > maxEventDate) maxEventDate = e.date;
+
         const maxMonth = fmtMonth(maxEventDate.getUTCFullYear(), maxEventDate.getUTCMonth() + 1);
         const simEndMonth = addMonths(maxMonth, 2);
         const simEndDate = endOfMonthUTC(simEndMonth);
@@ -535,14 +489,7 @@
         const monthly = [];
 
         function record(dateISO, type, label, amount) {
-          ledger.push({
-            dateISO,
-            type,
-            label,
-            amount,
-            cashAfter: cash,
-            debtAfter: debt,
-          });
+          ledger.push({ dateISO, type, label, amount, cashAfter: cash, debtAfter: debt });
         }
 
         function drawIfNeeded(dateISO, context) {
@@ -643,13 +590,10 @@
         let debtClearedMonth = null;
         for (const r of monthly) {
           if (r.debtEOM > 0) sawDebt = true;
-          if (sawDebt && r.debtEOM === 0) {
-            debtClearedMonth = r.month;
-            break;
-          }
+          if (sawDebt && r.debtEOM === 0) { debtClearedMonth = r.month; break; }
         }
 
-        const profitAfterInterest = totalRebates - totalInterestPaid; // informational
+        const profitAfterInterest = totalRebates - totalInterestPaid;
         const interestAsPctOfRebates = totalRebates > 0 ? totalInterestPaid / totalRebates : 0;
         const profitOverPeakExposure = peakNet.value > 0 ? totalRebates / peakNet.value : 0;
 
@@ -670,10 +614,6 @@
       /***************
        * Chart helpers
        ***************/
-      function toMM(m) {
-        return m; // keep YYYY-MM for auditability
-      }
-
       function ChartCanvas({ config, ariaLabel }) {
         const ref = useRef(null);
         const chartRef = useRef(null);
@@ -700,9 +640,6 @@
         return <canvas ref={ref} role="img" aria-label={ariaLabel}></canvas>;
       }
 
-      /***************
-       * UI
-       ***************/
       function MonthInput({ value, onChange, min, max }) {
         return (
           <input
@@ -716,30 +653,82 @@
       }
 
       function defaultProdStartForIndex(i) {
-        // Spread across Oct/Nov/Dec 2027 by default (editable)
         if (i < 4) return "2027-10";
         if (i < 8) return "2027-11";
         return "2027-12";
       }
 
-      function clampCars(target, deal, existing) {
+      function clampCars(target, existing) {
         const next = [];
         for (let i = 0; i < target; i++) {
           const id = i + 1;
           const prev = existing[i];
-          if (prev) {
-            next.push({ ...prev, id });
-          } else {
-            const prodStartMonth = defaultProdStartForIndex(i);
-            next.push({
-              id,
-              saleMonth: "2026-03",
-              prodStartMonth,
-              lateMonths: 0,
-            });
-          }
+          if (prev) next.push({ ...prev, id });
+          else next.push({ id, saleMonth: "2026-03", prodStartMonth: defaultProdStartForIndex(i), lateMonths: 0 });
         }
         return next;
+      }
+
+      /***************
+       * Feb–Dec pivot builder (months as columns)
+       ***************/
+      function buildFebDecPivot(monthly, cars) {
+        const monthMap = new Map();
+        for (const r of monthly) monthMap.set(r.month, r);
+
+        const months = [];
+        let m = "2026-02";
+        while (m <= "2026-12") { months.push(m); m = addMonths(m, 1); }
+
+        const safe = (x) => (x == null ? 0 : x);
+
+        // Cars sold (#) by month
+        const soldByMonth = {};
+        for (const c of cars) soldByMonth[c.saleMonth] = (soldByMonth[c.saleMonth] || 0) + 1;
+
+        // Per-month components (monthly deltas)
+        const flowByMonth = {};
+        for (const mm of months) {
+          const cur = monthMap.get(mm);
+          const prev = monthMap.get(addMonths(mm, -1));
+
+          const curD1 = safe(cur?.cumCustD1);
+          const curD2 = safe(cur?.cumCustD2);
+          const curMfg = safe(cur?.cumMfgOut);
+          const curReb = safe(cur?.cumRebatesIn);
+
+          const prevD1 = safe(prev?.cumCustD1);
+          const prevD2 = safe(prev?.cumCustD2);
+          const prevMfg = safe(prev?.cumMfgOut);
+          const prevReb = safe(prev?.cumRebatesIn);
+
+          const d1 = curD1 - prevD1;
+          const d2 = curD2 - prevD2;
+          const mfg = -(curMfg - prevMfg); // negative cashflow
+          const reb = curReb - prevReb;
+          const net = d1 + d2 + reb + mfg;
+
+          const begExp = safe(prev?.netExposureUnfinanced);
+          const endExp = safe(cur?.netExposureUnfinanced);
+
+          flowByMonth[mm] = { d1, d2, mfg, reb, net, begExp, endExp };
+        }
+
+        const rows = [
+          { label: "Cars sold (#)", kind: "int", tone: "neutral", values: months.map((mm) => soldByMonth[mm] || 0) },
+
+          { label: "Deposits collected — D1 (customers, £)", kind: "gbp", tone: "pos", values: months.map((mm) => flowByMonth[mm].d1) },
+          { label: "Deposits collected — D2 (customers, £)", kind: "gbp", tone: "pos", values: months.map((mm) => flowByMonth[mm].d2) },
+
+          { label: "Deposits made to GMA (manufacturer, £)", kind: "gbp", tone: "neg", values: months.map((mm) => flowByMonth[mm].mfg) },
+          { label: "Rebates collected (manufacturer, £)", kind: "gbp", tone: "pos", values: months.map((mm) => flowByMonth[mm].reb) },
+
+          { label: "Net cashflow this month (£)", kind: "gbp", tone: "neutral", values: months.map((mm) => flowByMonth[mm].net) },
+          { label: "Beginning exposure (£)", kind: "gbp", tone: "neutral", values: months.map((mm) => flowByMonth[mm].begExp) },
+          { label: "Ending exposure (£)", kind: "gbp", tone: "neutral", values: months.map((mm) => flowByMonth[mm].endExp) },
+        ];
+
+        return { months, rows };
       }
 
       function App() {
@@ -750,96 +739,57 @@
           startMonth: "2026-01",
         });
 
-        const [cars, setCars] = useState(() =>
-          clampCars(12, { numCars: 12, buildMonths: 4, annualRate: 0.085, startMonth: "2026-01" }, [])
-        );
+        const [cars, setCars] = useState(() => clampCars(12, []));
 
-        const [showCumInterestOnChart1, setShowCumInterestOnChart1] = useState(false);
+        // Scenario B: additional lateness applied to D2/D3/D4
+        const [scenarioBLateAdd, setScenarioBLateAdd] = useState(2);
+
+        // Chart 2 scenario selection (A or B)
+        const [chart2Scenario, setChart2Scenario] = useState("A");
 
         function applyDealPatch(patch) {
           const nextDeal = { ...deal, ...patch };
           setDeal(nextDeal);
-          setCars((prev) => clampCars(nextDeal.numCars, nextDeal, prev));
+          setCars((prev) => clampCars(nextDeal.numCars, prev));
         }
 
         function updateCar(id, patch) {
           setCars((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
         }
 
-        const { monthly, ledger, kpis } = useMemo(() => buildCashflow(deal, cars), [deal, cars]);
+        // Build scenario A and B results
+        const scenarioA = useMemo(() => buildCashflow(deal, cars, 0), [deal, cars]);
+        const scenarioB = useMemo(() => buildCashflow(deal, cars, scenarioBLateAdd), [deal, cars, scenarioBLateAdd]);
 
-        const dueLeadMonths = 1;
-        const d2DepositMonth = "2026-07";
-        const dueD2 = addMonths(d2DepositMonth, -dueLeadMonths);
-
-        // Month map for roll-forward lookups
-        const monthMap = useMemo(() => {
-          const m = new Map();
-          for (const r of monthly) m.set(r.month, r);
-          return m;
-        }, [monthly]);
+        // Build Feb-Dec pivots (months as columns)
+        const pivotA = useMemo(() => buildFebDecPivot(scenarioA.monthly, cars), [scenarioA.monthly, cars]);
+        const pivotB = useMemo(() => buildFebDecPivot(scenarioB.monthly, cars), [scenarioB.monthly, cars]);
 
         /***************
-         * Chart 1 config
-         * Added: a BRIGHT GREEN line for "Cumulative Profit (Rebates)" on RHS
+         * Chart 1: Exposure + Debt overlays (Scenario A vs B)
+         * (No bright green profit line here.)
          ***************/
         const chart1Config = useMemo(() => {
-          const labels = monthly.map((r) => toMM(r.month));
-          const netExposure = monthly.map((r) => r.netExposureUnfinanced);
-          const debt = monthly.map((r) => r.debtEOM);
+          const labels = scenarioA.monthly.map((r) => r.month);
 
-          const cumRebates = monthly.map((r) => r.cumRebatesIn);
-          const cumInterest = monthly.map((r) => r.cumInterestPaid);
+          const netA = scenarioA.monthly.map((r) => r.netExposureUnfinanced);
+          const debtA = scenarioA.monthly.map((r) => r.debtEOM);
 
-          const datasets = [
-            {
-              type: "line",
-              label: "Net Exposure (Unfinanced) — LHS",
-              data: netExposure,
-              yAxisID: "y",
-              tension: 0.25,
-              borderWidth: 2,
-              pointRadius: 0,
-            },
-            {
-              type: "line",
-              label: "Debt Outstanding (EOM) — LHS",
-              data: debt,
-              yAxisID: "y",
-              tension: 0.25,
-              borderWidth: 2,
-              pointRadius: 0,
-              borderDash: [6, 4],
-            },
-            {
-              type: "line",
-              // Requested bright green "light" for cumulative profit (rebates)
-              label: "Cumulative Profit (Rebates) — RHS",
-              data: cumRebates,
-              yAxisID: "y1",
-              tension: 0.25,
-              borderWidth: 3,
-              pointRadius: 0,
-              borderColor: "#00C853",  // bright green
-            },
-          ];
-
-          if (showCumInterestOnChart1) {
-            datasets.push({
-              type: "line",
-              label: "Cumulative Interest Paid — RHS",
-              data: cumInterest,
-              yAxisID: "y1",
-              tension: 0.25,
-              borderWidth: 2,
-              pointRadius: 0,
-              borderDash: [2, 3],
-            });
-          }
+          const netB = scenarioB.monthly.map((r) => r.netExposureUnfinanced);
+          const debtB = scenarioB.monthly.map((r) => r.debtEOM);
 
           return {
             type: "line",
-            data: { labels, datasets },
+            data: {
+              labels,
+              datasets: [
+                { label: "Net Exposure (Unfinanced) — Scenario A (LHS)", data: netA, yAxisID: "y", tension: 0.25, borderWidth: 2, pointRadius: 0 },
+                { label: "Debt Outstanding (EOM) — Scenario A (LHS)", data: debtA, yAxisID: "y", tension: 0.25, borderWidth: 2, pointRadius: 0, borderDash: [6,4] },
+
+                { label: "Net Exposure (Unfinanced) — Scenario B (LHS)", data: netB, yAxisID: "y", tension: 0.25, borderWidth: 2, pointRadius: 0, borderDash: [2,3] },
+                { label: "Debt Outstanding (EOM) — Scenario B (LHS)", data: debtB, yAxisID: "y", tension: 0.25, borderWidth: 2, pointRadius: 0, borderDash: [10,4] },
+              ],
+            },
             options: {
               responsive: true,
               maintainAspectRatio: false,
@@ -850,33 +800,30 @@
               },
               scales: {
                 x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, grid: { display: false } },
-                y: { title: { display: true, text: "LHS: Funding / Exposure" }, ticks: { callback: (v) => gbp(Number(v)) } },
-                y1: {
-                  position: "right",
-                  title: { display: true, text: "RHS: Cumulative Profit / Interest" },
-                  grid: { drawOnChartArea: false },
-                  ticks: { callback: (v) => gbp(Number(v)) },
-                },
+                y: { title: { display: true, text: "LHS: Exposure / Debt" }, ticks: { callback: (v) => gbp(Number(v)) } },
               },
             },
           };
-        }, [monthly, showCumInterestOnChart1]);
+        }, [scenarioA.monthly, scenarioB.monthly]);
 
         /***************
-         * Chart 2 config (unchanged)
+         * Chart 2: Monthly cashflow bars + Debt RHS + Cumulative Profit RHS2 (BRIGHT GREEN)
+         * Uses selected scenario (A or B).
          ***************/
         const chart2Config = useMemo(() => {
-          const labels = monthly.map((r) => toMM(r.month));
+          const s = chart2Scenario === "B" ? scenarioB : scenarioA;
+          const labels = s.monthly.map((r) => r.month);
 
           const cust = [];
           const rebates = [];
           const mfg = [];
           const interest = [];
           const debt = [];
+          const cumProfit = [];
 
-          for (let i = 0; i < monthly.length; i++) {
-            const cur = monthly[i];
-            const prev = i === 0 ? null : monthly[i - 1];
+          for (let i = 0; i < s.monthly.length; i++) {
+            const cur = s.monthly[i];
+            const prev = i === 0 ? null : s.monthly[i - 1];
 
             const dCust = cur.cumCustomerIn - (prev ? prev.cumCustomerIn : 0);
             const dReb = cur.cumRebatesIn - (prev ? prev.cumRebatesIn : 0);
@@ -888,6 +835,7 @@
             mfg.push(-dMfgOut);
             interest.push(-dInt);
             debt.push(cur.debtEOM);
+            cumProfit.push(cur.cumRebatesIn);
           }
 
           return {
@@ -895,11 +843,15 @@
             data: {
               labels,
               datasets: [
-                { type: "bar", label: "Customer Receipts — LHS", data: cust, stack: "cashflow", borderWidth: 0 },
-                { type: "bar", label: "Rebates — LHS", data: rebates, stack: "cashflow", borderWidth: 0 },
-                { type: "bar", label: "Manufacturer Deposits — LHS", data: mfg, stack: "cashflow", borderWidth: 0 },
-                { type: "bar", label: "Interest Paid — LHS", data: interest, stack: "cashflow", borderWidth: 0 },
-                { type: "line", label: "Debt (EOM) — RHS", data: debt, yAxisID: "y1", tension: 0.25, borderWidth: 2, pointRadius: 0 },
+                { type: "bar", label: `Customer Receipts — ${chart2Scenario} (LHS)`, data: cust, stack: "cashflow", borderWidth: 0 },
+                { type: "bar", label: `Rebates — ${chart2Scenario} (LHS)`, data: rebates, stack: "cashflow", borderWidth: 0 },
+                { type: "bar", label: `Manufacturer Deposits — ${chart2Scenario} (LHS)`, data: mfg, stack: "cashflow", borderWidth: 0 },
+                { type: "bar", label: `Interest Paid — ${chart2Scenario} (LHS)`, data: interest, stack: "cashflow", borderWidth: 0 },
+
+                { type: "line", label: `Debt (EOM) — ${chart2Scenario} (RHS)`, data: debt, yAxisID: "y1", tension: 0.25, borderWidth: 2, pointRadius: 0 },
+
+                /* Requested: BRIGHT GREEN “light” for cumulative profit on RHS2 */
+                { type: "line", label: `Cumulative Profit (Rebates) — ${chart2Scenario} (RHS2)`, data: cumProfit, yAxisID: "y2", tension: 0.25, borderWidth: 3, pointRadius: 0, borderColor: "#00C853" },
               ],
             },
             options: {
@@ -912,125 +864,132 @@
               },
               scales: {
                 x: { stacked: true, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, grid: { display: false } },
+
                 y: { stacked: true, title: { display: true, text: "LHS: Monthly Cashflow" }, ticks: { callback: (v) => gbp(Number(v)) } },
+
                 y1: {
                   position: "right",
                   title: { display: true, text: "RHS: Debt Outstanding" },
                   grid: { drawOnChartArea: false },
                   ticks: { callback: (v) => gbp(Number(v)) },
                 },
+
+                y2: {
+                  position: "right",
+                  offset: true,
+                  title: { display: true, text: "RHS2: Cumulative Profit (Rebates)" },
+                  grid: { drawOnChartArea: false },
+                  ticks: { callback: (v) => gbp(Number(v)) },
+                },
               },
             },
           };
-        }, [monthly]);
+        }, [scenarioA, scenarioB, chart2Scenario]);
 
-        /***************
-         * Feb–Dec 2026 pivot summary (months as columns, rows as lines)
-         * Change requested: Split "Deposits collected" into D1 and D2 rows.
-         ***************/
-        const febDecMonths = useMemo(() => {
-          const months = [];
-          let m = "2026-02";
-          while (m <= "2026-12") {
-            months.push(m);
-            m = addMonths(m, 1);
-          }
-          return months;
-        }, []);
+        const d2DepositMonth = "2026-07";
+        const dueD2 = addMonths(d2DepositMonth, -1);
 
-        const febDecPivot = useMemo(() => {
-          const safe = (x) => (x == null ? 0 : x);
+        function renderPivotTable(title, pivot) {
+          return (
+            <div className="kpiPanel">
+              <div className="kpiHeader">
+                <div className="kpiTitle">{title}</div>
+                <div className="small">Months are columns; rows are cashflow/exposure lines.</div>
+              </div>
+              <div className="tableWrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      {pivot.months.map((m) => (
+                        <th key={m} className="right mono">{m}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pivot.rows.map((r) => {
+                      const cls = r.tone === "pos" ? "rowPos" : r.tone === "neg" ? "rowNeg" : "rowNeutral";
+                      return (
+                        <tr key={r.label} className={cls}>
+                          <td className="rowTitle">{r.label}</td>
+                          {r.values.map((v, i) => (
+                            <td key={i} className="right">
+                              {r.kind === "int" ? String(v) : gbp(v)}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-          // Cars sold count by month (sale month)
-          const soldByMonth = {};
-          for (const c of cars) {
-            soldByMonth[c.saleMonth] = (soldByMonth[c.saleMonth] || 0) + 1;
-          }
+              <div className="small" style={{ marginTop: 8 }}>
+                Sign convention: deposits collected and rebates are positive (green). Deposits made to GMA are negative (red).
+                Net cashflow = (D1 + D2 + rebates + manufacturer deposits). Exposure is positive when you are out cash.
+              </div>
+            </div>
+          );
+        }
 
-          // Build per-month cashflow components from monthly roll-forward deltas
-          const flowByMonth = {};
-          for (const m of febDecMonths) {
-            const cur = monthMap.get(m);
-            const prev = monthMap.get(addMonths(m, -1));
+        function renderKpis(title, k) {
+          return (
+            <div className="kpiPanel">
+              <div className="kpiHeader">
+                <div className="kpiTitle">{title}</div>
+                <div className="small">Audit-friendly KPIs based on full daily accrual + month-end interest.</div>
+              </div>
 
-            const curD1 = safe(cur?.cumCustD1);
-            const curD2 = safe(cur?.cumCustD2);
-            const curMfg = safe(cur?.cumMfgOut);
-            const curReb = safe(cur?.cumRebatesIn);
+              <div className="cardRow">
+                <div className="card">
+                  <div className="small">Peak net exposure (unfinanced)</div>
+                  <div className="value">{gbp(k.peakNetExposure.value)}</div>
+                  <div className="small">Month: {k.peakNetExposure.month}</div>
+                </div>
 
-            const prevD1 = safe(prev?.cumCustD1);
-            const prevD2 = safe(prev?.cumCustD2);
-            const prevMfg = safe(prev?.cumMfgOut);
-            const prevReb = safe(prev?.cumRebatesIn);
+                <div className="card">
+                  <div className="small">Peak debt outstanding (EOM)</div>
+                  <div className="value">{gbp(k.peakDebt.value)}</div>
+                  <div className="small">Month: {k.peakDebt.month}</div>
+                </div>
 
-            const d1 = curD1 - prevD1;        // customer deposits collected — D1 (monthly)
-            const d2 = curD2 - prevD2;        // customer deposits collected — D2 (monthly)
-            const mfg = -(curMfg - prevMfg);  // manufacturer deposits (negative cashflow)
-            const reb = curReb - prevReb;     // rebates (positive)
+                <div className="card">
+                  <div className="small">Total rebates received (gross profit)</div>
+                  <div className="value">{gbp(k.totalRebates)}</div>
+                  <div className="small">Should converge to £0.5m × cars if all complete</div>
+                </div>
 
-            const net = d1 + d2 + reb + mfg;  // net cashflow line (same structure as last night's version)
+                <div className="card">
+                  <div className="small">Total interest paid</div>
+                  <div className="value">{gbp(k.totalInterestPaid)}</div>
+                  <div className="small">ACT/365F, paid month-end</div>
+                </div>
 
-            const begExp = safe(prev?.netExposureUnfinanced);
-            const endExp = safe(cur?.netExposureUnfinanced);
+                <div className="card">
+                  <div className="small">Interest drag (interest / rebates)</div>
+                  <div className="value">{pct(k.interestAsPctOfRebates)}</div>
+                  <div className="small">Informational</div>
+                </div>
 
-            flowByMonth[m] = { d1, d2, mfg, reb, net, begExp, endExp };
-          }
-
-          const rows = [
-            {
-              label: "Cars sold (#)",
-              kind: "int",
-              values: febDecMonths.map((m) => soldByMonth[m] || 0),
-            },
-            {
-              label: "Deposits collected — D1 (customers, £)",
-              kind: "gbp",
-              values: febDecMonths.map((m) => flowByMonth[m].d1),
-            },
-            {
-              label: "Deposits collected — D2 (customers, £)",
-              kind: "gbp",
-              values: febDecMonths.map((m) => flowByMonth[m].d2),
-            },
-            {
-              label: "Deposits made to GMA (manufacturer, £)",
-              kind: "gbp",
-              values: febDecMonths.map((m) => flowByMonth[m].mfg),
-            },
-            {
-              label: "Rebates collected (manufacturer, £)",
-              kind: "gbp",
-              values: febDecMonths.map((m) => flowByMonth[m].reb),
-            },
-            {
-              label: "Net cashflow this month (£)",
-              kind: "gbp",
-              values: febDecMonths.map((m) => flowByMonth[m].net),
-            },
-            {
-              label: "Beginning exposure (£)",
-              kind: "gbp",
-              values: febDecMonths.map((m) => flowByMonth[m].begExp),
-            },
-            {
-              label: "Ending exposure (£)",
-              kind: "gbp",
-              values: febDecMonths.map((m) => flowByMonth[m].endExp),
-            },
-          ];
-
-          return { months: febDecMonths, rows };
-        }, [febDecMonths, monthMap, cars]);
+                <div className="card">
+                  <div className="small">Debt cleared month</div>
+                  <div className="value">{k.debtClearedMonth || "—"}</div>
+                  <div className="small">First month EOM debt returns to £0</div>
+                </div>
+              </div>
+            </div>
+          );
+        }
 
         return (
           <div className="page">
             <div className="row">
               <div>
-                <h1>Deal Cashflow Model (single HTML file + charts + sliders)</h1>
+                <h1>Deal Cashflow Model (single HTML file + scenarios + charts + sliders)</h1>
                 <div className="small">
-                  Sale Month is a per-car slider (Mar–Sep 2026). Late Months is a per-car slider (0–3) applied to <b>D2, D3, and D4</b> customer payments.
-                  Customer due dates are always 1 month ahead of each manufacturer deposit month. All month-based events occur on the <b>15th</b>.
-                  Interest accrues daily on <b>ACT/365F</b> and is paid month-end.
+                  Sale Month is per-car (Mar–Sep 2026). Late Months is per-car (0–3) and applies to customer D2/D3/D4.
+                  Scenario B adds an extra lateness overlay to D2/D3/D4. Events occur on the 15th (month-level precision).
+                  Interest accrues daily ACT/365F and is paid at month-end; excess cash sweeps to repay debt.
                 </div>
               </div>
 
@@ -1070,78 +1029,41 @@
 
                 <label className="small">
                   Start month
-                  <MonthInput
-                    value={deal.startMonth}
-                    onChange={(v) => applyDealPatch({ startMonth: v })}
-                    min="2026-01"
+                  <MonthInput value={deal.startMonth} onChange={(v) => applyDealPatch({ startMonth: v })} min="2026-01" />
+                </label>
+
+                <label className="small">
+                  Scenario B extra lateness (months)
+                  <input
+                    type="range"
+                    min="0"
+                    max="3"
+                    step="1"
+                    value={scenarioBLateAdd}
+                    onChange={(e) => setScenarioBLateAdd(Number(e.target.value))}
                   />
+                  <span className="small mono">+{scenarioBLateAdd}m</span>
                 </label>
               </div>
             </div>
 
-            {/* KPI panel */}
-            <div className="cardRow">
-              <div className="card">
-                <div className="small">Peak net exposure (unfinanced)</div>
-                <div className="value">{gbp(kpis.peakNetExposure.value)}</div>
-                <div className="small">Month: {kpis.peakNetExposure.month}</div>
-              </div>
-
-              <div className="card">
-                <div className="small">Peak debt outstanding (EOM)</div>
-                <div className="value">{gbp(kpis.peakDebt.value)}</div>
-                <div className="small">Month: {kpis.peakDebt.month}</div>
-              </div>
-
-              <div className="card">
-                <div className="small">Total rebates received (gross profit)</div>
-                <div className="value">{gbp(kpis.totalRebates)}</div>
-                <div className="small">Should equal £0.5m × cars if all cars complete</div>
-              </div>
-
-              <div className="card">
-                <div className="small">Total interest paid</div>
-                <div className="value">{gbp(kpis.totalInterestPaid)}</div>
-                <div className="small">ACT/365F, paid month-end</div>
-              </div>
-
-              <div className="card">
-                <div className="small">Interest drag (interest / rebates)</div>
-                <div className="value">{pct(kpis.interestAsPctOfRebates)}</div>
-                <div className="small">Informational</div>
-              </div>
-
-              <div className="card">
-                <div className="small">Debt cleared month</div>
-                <div className="value">{kpis.debtClearedMonth || "—"}</div>
-                <div className="small">First month EOM debt returns to £0</div>
-              </div>
+            {/* Scenario KPI panels */}
+            <div className="kpiGrid">
+              {renderKpis("Scenario A (as-input lateness)", scenarioA.kpis)}
+              {renderKpis(`Scenario B (Scenario A + ${scenarioBLateAdd}m lateness on D2/D3/D4)`, scenarioB.kpis)}
             </div>
 
-            {/* Charts under KPI tiles */}
+            {/* Charts */}
             <div className="chartGrid">
               <div className="chartCard">
                 <div className="chartHeader">
                   <div>
-                    <div className="chartTitle">Chart 1: Exposure, Debt, and Cumulative Profit</div>
-                    <div className="small">Legend tags indicate which axis each series uses (LHS vs RHS). Profit line is bright green.</div>
-                  </div>
-                  <div className="chartTools">
-                    <label className="toggleRow small" title="Show cumulative interest on Chart 1">
-                      <input
-                        type="checkbox"
-                        checked={showCumInterestOnChart1}
-                        onChange={(e) => setShowCumInterestOnChart1(e.target.checked)}
-                      />
-                      Show cumulative interest
-                    </label>
+                    <div className="chartTitle">Chart 1: Exposure + Debt (Scenario A vs B overlays)</div>
+                    <div className="small">All series on LHS; labels specify scenario.</div>
                   </div>
                 </div>
                 <div className="chartCanvasWrap">
-                  <ChartCanvas
-                    config={chart1Config}
-                    ariaLabel="Exposure, debt, cumulative rebates over time"
-                  />
+                  <ChartCanvas config={chart1Config} ariaLabel="Exposure and debt over time for scenarios A and B" />
                 </div>
                 <div className="hint">
                   Net Exposure (Unfinanced) = cumulative manufacturer deposits − (cumulative customer receipts + cumulative rebates).
@@ -1151,72 +1073,58 @@
               <div className="chartCard">
                 <div className="chartHeader">
                   <div>
-                    <div className="chartTitle">Chart 2: Monthly Cashflow Bridge (Stacked) + Debt Overlay</div>
-                    <div className="small">Bars (LHS) show monthly inflows/outflows; the line (RHS) shows end-of-month debt.</div>
+                    <div className="chartTitle">Chart 2: Monthly Cashflow (stacked) + Debt (RHS) + Cumulative Profit (RHS2)</div>
+                    <div className="small">Bright green line is cumulative profit (rebates). Debt is on RHS.</div>
+                  </div>
+                  <div className="chartTools">
+                    <label className="small">
+                      Chart scenario
+                      <select value={chart2Scenario} onChange={(e) => setChart2Scenario(e.target.value)}>
+                        <option value="A">Scenario A</option>
+                        <option value="B">Scenario B</option>
+                      </select>
+                    </label>
                   </div>
                 </div>
                 <div className="chartCanvasWrap">
-                  <ChartCanvas
-                    config={chart2Config}
-                    ariaLabel="Monthly cashflows with debt overlay"
-                  />
+                  <ChartCanvas config={chart2Config} ariaLabel="Monthly cashflows with debt and cumulative profit overlay" />
                 </div>
                 <div className="hint">
-                  Positive bars are receipts (customers + rebates). Negative bars are payments (manufacturer deposits + interest).
+                  Bars (LHS) show monthly inflows/outflows; debt (RHS) and cumulative rebates (RHS2) are lines.
                 </div>
               </div>
             </div>
 
-            {/* Feb–Dec 2026 pivot summary */}
-            <div className="section">
-              <div className="sectionTitle">Feb–Dec 2026 Summary (Monthly Cashflow + Exposure Roll-Forward)</div>
-              <div className="tableWrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Metric</th>
-                      {febDecPivot.months.map((m) => (
-                        <th key={m} className="right mono">{m}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {febDecPivot.rows.map((r) => (
-                      <tr key={r.label}>
-                        <td style={{ fontWeight: 600 }}>{r.label}</td>
-                        {r.values.map((v, i) => (
-                          <td key={i} className="right">
-                            {r.kind === "int" ? String(v) : gbp(v)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="small" style={{ marginTop: 8 }}>
-                Sign convention: Deposits collected and rebates are positive. Deposits made to GMA are negative.
-                Net cashflow = (D1 deposits + D2 deposits + rebates + manufacturer deposits).
-                Exposure is positive when you are out cash.
-              </div>
-            </div>
-
-            {/* Per-car schedule (simplified inputs) */}
+            {/* Feb–Dec 2026 summary (months as columns; split D1/D2; restore coloring) */}
             <div className="section">
               <div className="row">
-                <div className="sectionTitle">Per-car schedule (simplified inputs)</div>
+                <div className="sectionTitle">Feb–Dec 2026 Summary (Monthly Cashflow + Exposure Roll-Forward)</div>
                 <div className="badgeRow">
-                  <span className="badge">Sale Month slider range: Mar–Sep 2026</span>
-                  <span className="badge">Late Months slider range: 0–3 (applies to D2/D3/D4)</span>
-                  <span className="badge">Customer Due Lead: {1} month ahead</span>
-                  <span className="badge">Customer D2 Due Month (all cars): {dueD2}</span>
-                  <span className="badge">MFG D1: 2026-02-01</span>
-                  <span className="badge">MFG D2: 2026-07-15</span>
+                  <span className="badge">Columns = months</span>
+                  <span className="badge">Deposits collected split into D1 & D2</span>
+                  <span className="badge">Green = collections/rebates, Red = manufacturer deposits</span>
+                  <span className="badge">Customer D2 due month (all cars): {dueD2}</span>
                 </div>
               </div>
 
-              <div className="tableWrap" style={{ marginTop: 10 }}>
+              <div className="summaryGrid">
+                {renderPivotTable("Scenario A", pivotA)}
+                {renderPivotTable(`Scenario B (+${scenarioBLateAdd}m)`, pivotB)}
+              </div>
+            </div>
+
+            {/* Per-car schedule (inputs) */}
+            <div className="section">
+              <div className="row">
+                <div className="sectionTitle">Per-car inputs</div>
+                <div className="badgeRow">
+                  <span className="badge">Sale Month slider: Mar–Sep 2026</span>
+                  <span className="badge">Late Months slider: 0–3 (applies to D2/D3/D4)</span>
+                  <span className="badge">Scenario B adds +{scenarioBLateAdd}m on top</span>
+                </div>
+              </div>
+
+              <div className="tableWrap">
                 <table>
                   <thead>
                     <tr>
@@ -1226,15 +1134,22 @@
                       <th>Prod Start Month</th>
                       <th>Delivery Month</th>
                       <th>Due Months (D2 / D3 / D4)</th>
-                      <th>Paid Months (D2 / D3 / D4)</th>
+                      <th>Paid Months (Scenario A) (D2 / D3 / D4)</th>
+                      <th>Paid Months (Scenario B) (D2 / D3 / D4)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {cars.map((c) => {
                       const { dueD2, dueD3, dueD4, deliveryMonth } = computeDueMonths(deal, c.prodStartMonth);
-                      const paidD2 = paidFromDueAndLate(dueD2, c.lateMonths);
-                      const paidD3 = paidFromDueAndLate(dueD3, c.lateMonths);
-                      const paidD4 = paidFromDueAndLate(dueD4, c.lateMonths);
+
+                      const paidA_D2 = paidFromDueAndLate(dueD2, c.lateMonths);
+                      const paidA_D3 = paidFromDueAndLate(dueD3, c.lateMonths);
+                      const paidA_D4 = paidFromDueAndLate(dueD4, c.lateMonths);
+
+                      const lateB = Math.max(0, Math.min(12, Number(c.lateMonths) + Number(scenarioBLateAdd)));
+                      const paidB_D2 = paidFromDueAndLate(dueD2, lateB);
+                      const paidB_D3 = paidFromDueAndLate(dueD3, lateB);
+                      const paidB_D4 = paidFromDueAndLate(dueD4, lateB);
 
                       return (
                         <tr key={c.id}>
@@ -1251,13 +1166,9 @@
                                   value={saleIndexFromMonth(c.saleMonth)}
                                   onChange={(e) => updateCar(c.id, { saleMonth: saleMonthFromIndex(e.target.value) })}
                                 />
-                                <span className="pill">
-                                  <span className="sliderValue">{c.saleMonth}</span>
-                                </span>
+                                <span className="pill"><span className="sliderValue">{c.saleMonth}</span></span>
                               </div>
-                              <div className="mini tight">
-                                Customer D1 (£1m) received on <b>{c.saleMonth}-15</b>.
-                              </div>
+                              <div className="mini">Customer D1 (£1m) received on <b>{c.saleMonth}-15</b>.</div>
                             </div>
                           </td>
 
@@ -1272,28 +1183,20 @@
                                   value={c.lateMonths}
                                   onChange={(e) => updateCar(c.id, { lateMonths: Number(e.target.value) })}
                                 />
-                                <span className="pill">
-                                  <span className="sliderValue">{c.lateMonths}</span> mo
-                                </span>
+                                <span className="pill"><span className="sliderValue">{c.lateMonths}</span> mo</span>
                               </div>
-                              <div className="mini tight">
-                                Applies to customer D2/D3/D4: Paid = Due + Late Months.
-                              </div>
+                              <div className="mini">Applies to customer D2/D3/D4 in Scenario A; Scenario B adds +{scenarioBLateAdd}m.</div>
                             </div>
                           </td>
 
                           <td>
                             <MonthInput value={c.prodStartMonth} onChange={(v) => updateCar(c.id, { prodStartMonth: v })} />
-                            <div className="small tight" style={{ marginTop: 6 }}>
-                              D3 due at start (15th); P3 rebate +14 days.
-                            </div>
+                            <div className="mini">D3 due at start; P3 rebate +14 days.</div>
                           </td>
 
                           <td>
-                            <div style={{ fontWeight: 600 }}>{deliveryMonth}</div>
-                            <div className="small tight" style={{ marginTop: 6 }}>
-                              Delivery = start + {deal.buildMonths}m (15th); P4 rebate +14 days.
-                            </div>
+                            <div style={{ fontWeight: 700 }}>{deliveryMonth}</div>
+                            <div className="mini">Delivery = start + {deal.buildMonths}m; P4 rebate +14 days.</div>
                           </td>
 
                           <td className="mono">
@@ -1303,9 +1206,11 @@
                           </td>
 
                           <td className="mono">
-                            <div>D2 paid: {paidD2}</div>
-                            <div>D3 paid: {paidD3}</div>
-                            <div>D4 paid: {paidD4}</div>
+                            <div>{paidA_D2} / {paidA_D3} / {paidA_D4}</div>
+                          </td>
+
+                          <td className="mono">
+                            <div>{paidB_D2} / {paidB_D3} / {paidB_D4}</div>
                           </td>
                         </tr>
                       );
@@ -1313,15 +1218,11 @@
                   </tbody>
                 </table>
               </div>
-
-              <div className="small" style={{ marginTop: 8 }}>
-                Note: “Paid Months” are derived from sliders. This version is intentionally streamlined.
-              </div>
             </div>
 
-            {/* Monthly outputs (end-of-month) */}
+            {/* Monthly outputs (end-of-month) - Scenario A only for audit */}
             <div className="section">
-              <div className="sectionTitle">Monthly outputs (end-of-month)</div>
+              <div className="sectionTitle">Monthly outputs (end-of-month) — Scenario A (audit)</div>
               <div className="tableWrap">
                 <table>
                   <thead>
@@ -1337,7 +1238,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    {monthly.map((r) => (
+                    {scenarioA.monthly.map((r) => (
                       <tr key={r.month}>
                         <td className="mono">{r.month}</td>
                         <td className="right">{gbp(r.cashEOM)}</td>
@@ -1357,10 +1258,10 @@
               </div>
             </div>
 
-            {/* Audit ledger */}
+            {/* Audit ledger (Scenario A) */}
             <div className="section">
               <details>
-                <summary className="sectionTitle">Audit ledger (chronological)</summary>
+                <summary className="sectionTitle">Audit ledger (chronological) — Scenario A</summary>
                 <div className="tableWrap" style={{ marginTop: 10 }}>
                   <table>
                     <thead>
@@ -1374,7 +1275,7 @@
                       </tr>
                     </thead>
                     <tbody>
-                      {ledger.map((r, idx) => (
+                      {scenarioA.ledger.map((r, idx) => (
                         <tr key={idx}>
                           <td className="mono">{r.dateISO}</td>
                           <td className="mono">{r.type}</td>
