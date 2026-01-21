@@ -499,6 +499,7 @@
           raw.push({
             date: monthDate15(c.saleMonth),
             type: "CUST_IN",
+            tranche: "D1",
             label: `Car ${c.id}: Customer D1 receipt`,
             amount: +D1,
           });
@@ -514,18 +515,21 @@
           raw.push({
             date: monthDate15(paidD2Month),
             type: "CUST_IN",
+            tranche: "D2",
             label: `Car ${c.id}: Customer D2 receipt (late ${c.lateMonths}m)`,
             amount: +D2,
           });
           raw.push({
             date: monthDate15(paidD3Month),
             type: "CUST_IN",
+            tranche: "D3",
             label: `Car ${c.id}: Customer D3 receipt (late ${c.lateMonths}m)`,
             amount: +D3,
           });
           raw.push({
             date: monthDate15(paidD4Month),
             type: "CUST_IN",
+            tranche: "D4",
             label: `Car ${c.id}: Customer D4 receipt (late ${c.lateMonths}m)`,
             amount: +D4,
           });
@@ -600,10 +604,11 @@
         const ledger = [];
         const monthly = [];
 
-        function record(dateISO, type, label, amount) {
+        function record(dateISO, type, label, amount, tranche) {
           ledger.push({
             dateISO,
             type,
+            tranche: tranche || null,
             label,
             amount,
             cashAfter: cash,
@@ -642,7 +647,7 @@
             if (e.type === "MFG_OUT") cumMfgOut += -e.amount; // store positive outflow
             if (e.type === "REBATE_IN") cumRebatesIn += e.amount;
 
-            record(dateISO, e.type, e.label, e.amount);
+            record(dateISO, e.type, e.label, e.amount, e.tranche);
             drawIfNeeded(dateISO, e.label);
           }
 
@@ -847,22 +852,40 @@
           if (carsSold[c.saleMonth] !== undefined) carsSold[c.saleMonth] += 1;
         }
 
-        const depositsCollected = Object.fromEntries(months.map((m) => [m, 0])); // customer receipts (D1 + D2 only in 2026)
+        // Split customer receipts into D1 and D2 (for Feb-Dec 2026 view)
+        const depositsCollectedD1 = Object.fromEntries(months.map((m) => [m, 0]));
+        const depositsCollectedD2 = Object.fromEntries(months.map((m) => [m, 0]));
+
         const depositsMade = Object.fromEntries(months.map((m) => [m, 0]));      // manufacturer deposits (negative)
-        const rebatesCollected = Object.fromEntries(months.map((m) => [m, 0]));  // P1/P2 (and any others that land in 2026)
+        const rebatesCollected = Object.fromEntries(months.map((m) => [m, 0]));  // rebates landing in 2026
+
+        function trancheFromRow(r) {
+          if (r.tranche) return r.tranche;
+          // fallback for robustness (in case tranche ever missing)
+          if (typeof r.label === "string") {
+            if (r.label.includes("Customer D1")) return "D1";
+            if (r.label.includes("Customer D2")) return "D2";
+          }
+          return null;
+        }
 
         for (const r of ledger) {
           const m = monthFromISODate(r.dateISO);
           if (!months.includes(m)) continue;
 
-          if (r.type === "CUST_IN") depositsCollected[m] += r.amount;
+          if (r.type === "CUST_IN") {
+            const tr = trancheFromRow(r);
+            if (tr === "D1") depositsCollectedD1[m] += r.amount;
+            if (tr === "D2") depositsCollectedD2[m] += r.amount;
+          }
           if (r.type === "MFG_OUT") depositsMade[m] += r.amount; // already negative
           if (r.type === "REBATE_IN") rebatesCollected[m] += r.amount;
         }
 
         const netCashflow = Object.fromEntries(months.map((m) => [m, 0]));
         for (const m of months) {
-          netCashflow[m] = depositsCollected[m] + rebatesCollected[m] + depositsMade[m];
+          const depositsCollectedTotal = depositsCollectedD1[m] + depositsCollectedD2[m];
+          netCashflow[m] = depositsCollectedTotal + rebatesCollected[m] + depositsMade[m];
         }
 
         const beginningExposure = Object.fromEntries(months.map((m) => [m, 0]));
@@ -878,7 +901,17 @@
           prevEnd = end;
         }
 
-        return { months, carsSold, depositsCollected, depositsMade, rebatesCollected, netCashflow, beginningExposure, endingExposure };
+        return {
+          months,
+          carsSold,
+          depositsCollectedD1,
+          depositsCollectedD2,
+          depositsMade,
+          rebatesCollected,
+          netCashflow,
+          beginningExposure,
+          endingExposure,
+        };
       }
 
       /***************
@@ -1032,7 +1065,7 @@
         }, [monthly, showCumInterestOnChart1]);
 
         /***************
-         * Chart 2 config
+         * Chart 2 config (UPDATED: add Total line on LHS)
          ***************/
         const chart2Config = useMemo(() => {
           const labels = monthly.map((r) => toMM(r.month));
@@ -1041,6 +1074,7 @@
           const rebates = [];
           const mfg = [];
           const interest = [];
+          const total = [];
           const debt = [];
 
           for (let i = 0; i < monthly.length; i++) {
@@ -1049,13 +1083,17 @@
 
             const dCust = cur.cumCustomerIn - (prev ? prev.cumCustomerIn : 0);
             const dReb = cur.cumRebatesIn - (prev ? prev.cumRebatesIn : 0);
-            const dMfgOut = cur.cumMfgOut - (prev ? prev.cumMfgOut : 0);
-            const dInt = cur.cumInterestPaid - (prev ? prev.cumInterestPaid : 0);
+            const dMfgOut = cur.cumMfgOut - (prev ? prev.cumMfgOut : 0);        // positive outflow delta
+            const dInt = cur.cumInterestPaid - (prev ? prev.cumInterestPaid : 0); // positive outflow delta
 
             cust.push(dCust);
             rebates.push(dReb);
             mfg.push(-dMfgOut);
             interest.push(-dInt);
+
+            // Total net cashflow for the month = sum of the stacked components
+            total.push(dCust + dReb - dMfgOut - dInt);
+
             debt.push(cur.debtEOM);
           }
 
@@ -1068,6 +1106,20 @@
                 { type: "bar", label: "Rebates — LHS", data: rebates, stack: "cashflow", borderWidth: 0 },
                 { type: "bar", label: "Manufacturer Deposits — LHS", data: mfg, stack: "cashflow", borderWidth: 0 },
                 { type: "bar", label: "Interest Paid — LHS", data: interest, stack: "cashflow", borderWidth: 0 },
+
+                // NEW: total profile line on LHS (matches stacked bars)
+                {
+                  type: "line",
+                  label: "Total Net Cashflow — LHS",
+                  data: total,
+                  yAxisID: "y",
+                  tension: 0.25,
+                  borderWidth: 2,
+                  pointRadius: 0,
+                  borderDash: [4, 3],
+                  stack: "totalLine",
+                },
+
                 { type: "line", label: "Debt (EOM) — RHS", data: debt, yAxisID: "y1", tension: 0.25, borderWidth: 2, pointRadius: 0 },
               ],
             },
@@ -1227,10 +1279,18 @@
                       ))}
                     </tr>
 
+                    {/* UPDATED: split customer receipts into D1 and D2 */}
                     <tr className="rowGood">
-                      <td className="rowLabel"><b>Deposits collected (customers, £)</b></td>
+                      <td className="rowLabel"><b>Deposits collected — D1 (customers, £)</b></td>
                       {summary2026.months.map((m) => (
-                        <td key={m} className="mono right">{gbp(summary2026.depositsCollected[m])}</td>
+                        <td key={m} className="mono right">{gbp(summary2026.depositsCollectedD1[m])}</td>
+                      ))}
+                    </tr>
+
+                    <tr className="rowGood">
+                      <td className="rowLabel"><b>Deposits collected — D2 (customers, £)</b></td>
+                      {summary2026.months.map((m) => (
+                        <td key={m} className="mono right">{gbp(summary2026.depositsCollectedD2[m])}</td>
                       ))}
                     </tr>
 
@@ -1308,14 +1368,14 @@
                 <div className="chartHeader">
                   <div>
                     <div className="chartTitle">Chart 2: Monthly Cashflow Bridge (Stacked) + Debt Overlay</div>
-                    <div className="small">Bars (LHS) show monthly inflows/outflows; the line (RHS) shows end-of-month debt.</div>
+                    <div className="small">Bars (LHS) show monthly inflows/outflows; the line (RHS) shows end-of-month debt. Dashed line (LHS) shows total net cashflow.</div>
                   </div>
                 </div>
                 <div className="chartCanvasWrap">
-                  <ChartCanvas config={chart2Config} ariaLabel="Monthly cashflows with debt overlay" />
+                  <ChartCanvas config={chart2Config} ariaLabel="Monthly cashflows with total line and debt overlay" />
                 </div>
                 <div className="hint">
-                  Positive bars are receipts (customers + rebates). Negative bars are payments (manufacturer deposits + interest).
+                  Positive bars are receipts (customers + rebates). Negative bars are payments (manufacturer deposits + interest). The dashed line is the monthly total (sum of the stacked bars).
                 </div>
               </div>
             </div>
